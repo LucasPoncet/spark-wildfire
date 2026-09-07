@@ -1,3 +1,31 @@
+"""Regular square grid mesh with 4- or 8-connectivity.
+
+Example:
+    from spark.terrain.square_grid_mesh import SquareGridMesh, SquareGridMeshConfig
+
+    mesh = SquareGridMesh(
+        SquareGridMeshConfig(
+            extent_x_m=100.0,
+            extent_y_m=100.0,
+            cell_spacing_m=0.5,
+            use_diagonal_neighbors=False,
+        )
+    )
+    mesh = SquareGridMesh.from_values(100.0, 100.0, 0.5, False)
+
+    is_valid = mesh.neighbor_indices >= 0
+    mean_spacing_m = mesh.neighbor_distances_m[is_valid].mean()
+
+Cells are laid out row-major from the origin with x varying fastest: cell
+row * n_x + column sits at (column * spacing, row * spacing, 0.0), so a per-cell
+array reshapes to a 2D image with values.reshape(n_y, n_x).
+
+Neighbor rows are padded to max_neighbors with -1, with matching zeros in
+neighbor_distances_m and neighbor_unit_directions_xyz, so mask before use.
+
+Consumers annotate against MeshProtocol rather than against this class.
+"""
+
 from dataclasses import dataclass
 from typing import Self
 
