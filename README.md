@@ -88,6 +88,17 @@ To run the test suite:
 uv run pytest
 ```
 
+### Development tooling
+
+| Command | Purpose |
+|---|---|
+| `uv run ruff check .` | Lint: naming, import order, annotation coverage, docstring style, numpy idioms |
+| `uv run ruff format .` | Format |
+| `uv run mypy` | Strict static type check; enforces the `Protocol` contracts |
+| `uv run pytest --cov` | Tests with coverage |
+
+`data/` and `results/` are excluded from every tool.
+
 ---
 
 ## Roadmap

@@ -1,4 +1,5 @@
-def main():
+def main() -> None:
+    """Print the project banner."""
     print("Hello from spark-wildfire!")
 
 
