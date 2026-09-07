@@ -1,0 +1,1 @@
+Here is the link to the dataset : https://www.kaggle.com/datasets/forestprotection/forest-wild-fire-sound-dataset

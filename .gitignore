@@ -40,11 +40,6 @@ htmlcov/
 # =============================================================================
 # Data
 # =============================================================================
-data/raw_recordings/
-data/processed_segments/
-
-# Manifests are committed — they are the reproducibility record
-!data/split_manifests/
 
 # =============================================================================
 # Results
