@@ -1,5 +1,7 @@
 """A constant wind field expressed in physical terms (speed and bearing)."""
 
+from typing import Self
+
 import numpy as np
 import numpy.typing as npt
 
@@ -12,13 +14,15 @@ class ConstantWindField(UniformVectorField):
     @classmethod
     def from_speed_and_bearing(
         cls, wind_speed_m_per_s: float, wind_bearing_rad: float
-    ) -> "ConstantWindField":
+    ) -> Self:
         """Build the field from a physical wind speed and bearing.
 
         Args:
             wind_speed_m_per_s: Wind speed, in metres per second.
-            wind_bearing_rad: Direction the wind blows towards, in radians,
-                measured counter-clockwise from the positive x-axis.
+            wind_bearing_rad: Direction the wind blows *towards*, in radians,
+                counter-clockwise from the positive x-axis. This is a math
+                convention, not the meteorological one, which reports the
+                direction wind comes *from*, clockwise from north.
 
         Returns:
             A ConstantWindField carrying the equivalent 3D vector.

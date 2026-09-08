@@ -7,6 +7,9 @@ else, is a config change, not a code change.
 
 from typing import Protocol, runtime_checkable
 
+import numpy as np
+import numpy.typing as npt
+
 from spark.fields.scalar_field_protocol import ScalarFieldProtocol
 from spark.fields.vector_field_protocol import VectorFieldProtocol
 from spark.fire.fire_state import FireState
@@ -32,6 +35,23 @@ class SpreadEngineProtocol(Protocol):
 
         Returns:
             A FireState with no cell burning, at time 0.
+        """
+        ...
+
+    def ignite_cells(
+        self, state: FireState, cell_indices: npt.NDArray[np.int64]
+    ) -> FireState:
+        """Start a fire at the given cells, at the state's current time.
+
+        Cells that carry no fuel or have already ignited are skipped. Burnout
+        time is set by the engine, which is the only holder of that knowledge.
+
+        Args:
+            state: The state to ignite cells in.
+            cell_indices: Int64 array of shape (k,), indices of cells to ignite.
+
+        Returns:
+            A new FireState at the same time, with the ignitable cells burning.
         """
         ...
 

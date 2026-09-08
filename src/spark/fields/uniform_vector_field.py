@@ -1,11 +1,14 @@
-"""A vector field returning the same 3D vector everywhere, satisfying VectorFieldProtocol."""
+"""A vector field returning the same 3D vector everywhere.
+
+Satisfies VectorFieldProtocol.
+"""
 
 import numpy as np
 import numpy.typing as npt
 
 
 class UniformVectorField:
-    """Constant vector field: the day-one wind model, one direction and speed everywhere."""
+    """Constant vector field: one wind direction and speed everywhere."""
 
     def __init__(self, vector_xyz: npt.NDArray[np.float64]) -> None:
         """Store the constant 3D vector returned at every position.

@@ -1,25 +1,24 @@
 """Alexandridis-style probabilistic cellular automaton fire spread engine.
 
-This is a mesh-native translation of the original 2D-grid "jeu de la vie"
-prototype: the same three rules (extinction after a fixed burn duration,
-neighbor-driven ignition probability modulated by wind and local fuel,
-no cell reignites once burnt), expressed over `MeshProtocol.neighbor_indices`
-instead of a 2D array and its manual `(dx, dy)` shifts. Because the rules
-are phrased in seconds rather than in "turns", the ignition probability
-contributed by any one already-burning neighbor is independent of `dt`.
+This is a mesh-native translation of the original 2D-grid prototype: the
+same three rules (extinction after a fixed burn duration, neighbor-driven
+ignition probability modulated by wind and local fuel, no cell reignites
+once burnt), expressed over `MeshProtocol.neighbor_indices` instead of a
+2D array and its manual `(dx, dy)` shifts. Because the rules are phrased
+in seconds rather than in turns, the ignition probability contributed by
+any one already-burning neighbor is independent of `dt`.
 
-This does not make the whole simulation dt-independent: like the original
-turn-based prototype, one call to `step` only lets fire cross one mesh
-edge, so calling it with a smaller `dt` more often still resolves a fire
-front advancing through more cells over the same wall-clock time. Pick
-`dt` relative to `cell_spacing_m` and the fastest rate of spread you
-expect, the same way you would pick a CFL-bounded timestep for any other
-explicit front-tracking scheme.
+This does not make the whole simulation dt-independent: one call to `step`
+only lets fire cross one mesh edge, so calling it with a smaller `dt` more
+often still resolves a fire front advancing through more cells over the
+same wall-clock time. Pick `dt` relative to `cell_spacing_m` and the
+fastest rate of spread you expect, the same way you would pick a
+CFL-bounded timestep for any other explicit front-tracking scheme.
 
 Queries the mesh for neighbors and directions, queries the wind field for
-wind at each cell, applies probabilistic ignition. Never implements ROS
-physics itself — `rate_of_spread_engine.py` is the physically-grounded
-alternative satisfying the same SpreadEngineProtocol.
+wind at each cell, applies probabilistic ignition. Never implements rate
+of spread physics itself — `rate_of_spread_engine.py` is the physically
+grounded alternative satisfying the same SpreadEngineProtocol.
 """
 
 from dataclasses import dataclass
@@ -54,8 +53,8 @@ class CellularAutomatonSpreadEngineConfig:
             ignition rate stays constant regardless of `dt`.
         burn_duration_s: How long a cell stays on fire before burning out.
         wind_influence_strength: How strongly alignment between the wind
-            direction and the direction to a burning neighbor raises or
-            lowers the ignition probability.
+            direction and the direction fire travels raises or lowers the
+            ignition probability.
         ignition_probability_wind_factor_min: Lower clip on the wind
             multiplier applied to the ignition probability.
         ignition_probability_wind_factor_max: Upper clip on the wind
@@ -66,7 +65,8 @@ class CellularAutomatonSpreadEngineConfig:
             full (1.0) fuel density.
         ignition_probability_max: Hard cap on the per-neighbor ignition
             probability.
-        random_seed: Seed for the engine's own random number generator.
+        random_seed: Seed for the engine's own random number generator,
+            reset on every call to `initialize`.
     """
 
     base_ignition_probability: float = 0.28
@@ -83,21 +83,32 @@ class CellularAutomatonSpreadEngineConfig:
     random_seed: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class _BoundDomain:
+    """Mesh and sampled fields the engine is bound to by `initialize`."""
+
+    mesh: MeshProtocol
+    wind_field: VectorFieldProtocol
+    fuel_density_fraction: npt.NDArray[np.float64]
+    is_flammable: npt.NDArray[np.bool_]
+
+
 class CellularAutomatonSpreadEngine:
     """Probabilistic ignition cellular automaton, satisfying SpreadEngineProtocol."""
 
-    def __init__(self, config: CellularAutomatonSpreadEngineConfig | None = None) -> None:
-        """Store the calibration config and create the engine's own RNG stream.
+    def __init__(
+        self, config: CellularAutomatonSpreadEngineConfig | None = None
+    ) -> None:
+        """Store the calibration config.
 
         Args:
             config: Calibration constants. Defaults are used when omitted.
         """
-        self._config = config if config is not None else CellularAutomatonSpreadEngineConfig()
+        self._config = (
+            config if config is not None else CellularAutomatonSpreadEngineConfig()
+        )
         self._random_number_generator = np.random.default_rng(self._config.random_seed)
-        self._mesh: MeshProtocol | None = None
-        self._fuel_density_fraction: npt.NDArray[np.float64] | None = None
-        self._is_flammable: npt.NDArray[np.bool_] | None = None
-        self._wind_field: VectorFieldProtocol | None = None
+        self._domain: _BoundDomain | None = None
 
     def initialize(
         self,
@@ -107,62 +118,82 @@ class CellularAutomatonSpreadEngine:
     ) -> FireState:
         """Bind the engine to a mesh and its fields, and return the unburnt state.
 
+        Resets the random stream so two runs from the same config and seed
+        are identical.
+
         Args:
             mesh: Geometry and connectivity the fire will propagate over.
-            fuel_field: Fuel density (0 to 1) at each cell position.
+            fuel_field: Fuel density, clipped to 0 to 1, at each cell position.
             wind_field: Wind vector, in metres per second, at each cell position.
 
         Returns:
             A FireState with no cell burning, at time 0.
         """
-        self._mesh = mesh
-        self._wind_field = wind_field
-        self._fuel_density_fraction = fuel_field.sample(mesh.cell_positions_xyz)
-        self._is_flammable = (
-            self._fuel_density_fraction > FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION
+        fuel_density_fraction = np.clip(
+            fuel_field.sample(mesh.cell_positions_xyz), 0.0, 1.0
         )
-        cell_count = mesh.cell_count
+        self._random_number_generator = np.random.default_rng(self._config.random_seed)
+        self._domain = _BoundDomain(
+            mesh=mesh,
+            wind_field=wind_field,
+            fuel_density_fraction=fuel_density_fraction,
+            is_flammable=fuel_density_fraction
+            > FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION,
+        )
         return FireState(
-            ignition_times_s=np.full(cell_count, np.inf, dtype=np.float64),
-            burnout_times_s=np.full(cell_count, np.inf, dtype=np.float64),
-            is_burning=np.zeros(cell_count, dtype=np.bool_),
-            has_ignited=np.zeros(cell_count, dtype=np.bool_),
+            ignition_times_s=np.full(mesh.cell_count, np.inf, dtype=np.float64),
+            burnout_times_s=np.full(mesh.cell_count, np.inf, dtype=np.float64),
+            is_burning=np.zeros(mesh.cell_count, dtype=np.bool_),
+            has_ignited=np.zeros(mesh.cell_count, dtype=np.bool_),
             current_time_s=0.0,
         )
 
-    def ignite_cell(self, state: FireState, cell_index: int) -> tuple[FireState, bool]:
-        """Start a fire at one cell, if it carries fuel and has never ignited.
-
-        Args:
-            state: The state to ignite a cell in.
-            cell_index: Index of the cell to ignite.
+    def _require_bound_domain(self) -> _BoundDomain:
+        """Return the bound domain, or fail with a message naming the cause.
 
         Returns:
-            A tuple of the resulting state (unchanged if ignition failed) and
-            whether ignition happened.
+            The mesh and fields bound by the last call to `initialize`.
+
+        Raises:
+            RuntimeError: If `initialize` has not been called.
         """
-        if not self._is_flammable[cell_index] or state.has_ignited[cell_index]:
-            return state, False
+        if self._domain is None:
+            raise RuntimeError(
+                "CellularAutomatonSpreadEngine.initialize must be called "
+                "before igniting cells or stepping the simulation"
+            )
+        return self._domain
 
-        is_burning_next = state.is_burning.copy()
-        has_ignited_next = state.has_ignited.copy()
-        ignition_times_s_next = state.ignition_times_s.copy()
-        burnout_times_s_next = state.burnout_times_s.copy()
+    def ignite_cells(
+        self, state: FireState, cell_indices: npt.NDArray[np.int64]
+    ) -> FireState:
+        """Start a fire at the given cells, at the state's current time.
 
-        is_burning_next[cell_index] = True
-        has_ignited_next[cell_index] = True
-        ignition_times_s_next[cell_index] = state.current_time_s
-        burnout_times_s_next[cell_index] = state.current_time_s + self._config.burn_duration_s
+        Cells that carry no fuel or have already ignited are skipped.
 
-        return (
-            FireState(
-                ignition_times_s=ignition_times_s_next,
-                burnout_times_s=burnout_times_s_next,
-                is_burning=is_burning_next,
-                has_ignited=has_ignited_next,
-                current_time_s=state.current_time_s,
+        Args:
+            state: The state to ignite cells in.
+            cell_indices: Int64 array of shape (k,), indices of cells to ignite.
+
+        Returns:
+            A new FireState at the same time, with the ignitable cells burning.
+        """
+        domain = self._require_bound_domain()
+        is_requested = np.zeros(domain.mesh.cell_count, dtype=np.bool_)
+        is_requested[cell_indices] = True
+        newly_ignited = is_requested & domain.is_flammable & ~state.has_ignited
+        return FireState(
+            ignition_times_s=np.where(
+                newly_ignited, state.current_time_s, state.ignition_times_s
             ),
-            True,
+            burnout_times_s=np.where(
+                newly_ignited,
+                state.current_time_s + self._config.burn_duration_s,
+                state.burnout_times_s,
+            ),
+            is_burning=state.is_burning | newly_ignited,
+            has_ignited=state.has_ignited | newly_ignited,
+            current_time_s=state.current_time_s,
         )
 
     def step(self, state: FireState, dt: float) -> FireState:
@@ -171,9 +202,9 @@ class CellularAutomatonSpreadEngine:
         Rule 1: a burning cell whose burn duration has elapsed extinguishes.
         Rule 2: an unburnt, fuelled cell ignites with a probability that
             rises with its count of burning neighbors, its own fuel density,
-            and wind blowing towards it from those neighbors.
-        Rule 3: a cell that has ever ignited can never ignite again — this
-            falls out of only ever testing `~state.has_ignited` below.
+            and wind blowing from those neighbors towards it.
+        Rule 3: a cell that has ever ignited can never ignite again, which
+            follows from only ever testing `~state.has_ignited`.
 
         Args:
             state: The state to advance from.
@@ -182,16 +213,15 @@ class CellularAutomatonSpreadEngine:
         Returns:
             A new FireState at time `state.current_time_s + dt`.
         """
-        mesh = self._mesh
+        domain = self._require_bound_domain()
+        mesh = domain.mesh
         new_current_time_s = state.current_time_s + dt
 
-        # Rule 1: extinguish cells whose burn duration has elapsed.
         is_burning_after_extinction = state.is_burning & (
             state.burnout_times_s > new_current_time_s
         )
 
-        # Rule 2: neighbor-, wind- and fuel-driven ignition probability.
-        wind_vectors_xyz = self._wind_field.sample(mesh.cell_positions_xyz)
+        wind_vectors_xyz = domain.wind_field.sample(mesh.cell_positions_xyz)
         wind_speeds_m_per_s = np.linalg.norm(wind_vectors_xyz, axis=1)
         has_wind = wind_speeds_m_per_s > WIND_SPEED_EPSILON_M_PER_S
         safe_wind_speeds_m_per_s = np.where(has_wind, wind_speeds_m_per_s, 1.0)
@@ -201,13 +231,16 @@ class CellularAutomatonSpreadEngine:
         neighbor_indices = mesh.neighbor_indices
         is_valid_neighbor = neighbor_indices >= 0
         safe_neighbor_indices = np.where(is_valid_neighbor, neighbor_indices, 0)
-        is_neighbor_burning = is_burning_after_extinction[safe_neighbor_indices] & is_valid_neighbor
+        is_neighbor_burning = (
+            is_burning_after_extinction[safe_neighbor_indices] & is_valid_neighbor
+        )
 
-        wind_alignment = np.einsum(
+        wind_alignment_neighbor_to_cell = -np.einsum(
             "nkj,nj->nk", mesh.neighbor_unit_directions_xyz, wind_unit_vectors_xyz
         )
         wind_factor = np.clip(
-            1.0 + self._config.wind_influence_strength * wind_alignment,
+            1.0
+            + self._config.wind_influence_strength * wind_alignment_neighbor_to_cell,
             self._config.ignition_probability_wind_factor_min,
             self._config.ignition_probability_wind_factor_max,
         )
@@ -221,7 +254,7 @@ class CellularAutomatonSpreadEngine:
         )
         fuel_factor = (
             self._config.fuel_factor_base
-            + self._fuel_density_fraction * self._config.fuel_factor_gain
+            + domain.fuel_density_fraction * self._config.fuel_factor_gain
         )
         probability_per_reference_step = np.clip(
             base_probability_per_reference_step * wind_factor * fuel_factor[:, None],
@@ -229,8 +262,6 @@ class CellularAutomatonSpreadEngine:
             self._config.ignition_probability_max,
         )
 
-        # Rescale from the calibration timestep to the actual one so the
-        # per-second ignition rate is independent of dt.
         time_step_ratio = dt / self._config.probability_reference_time_step_s
         probability_per_actual_step = 1.0 - np.power(
             1.0 - probability_per_reference_step, time_step_ratio
@@ -243,27 +274,20 @@ class CellularAutomatonSpreadEngine:
             probability_of_no_ignition_from_neighbor, axis=1
         )
 
-        can_ignite = self._is_flammable & ~state.has_ignited
+        can_ignite = domain.is_flammable & ~state.has_ignited
         ignition_roll = self._random_number_generator.random(mesh.cell_count)
         newly_ignited = can_ignite & (ignition_roll < probability_of_ignition)
 
-        # Rule 3 falls out here: `can_ignite` excludes every cell that has
-        # ever ignited, burning or not, so a burnt cell never reignites.
-        is_burning_next = is_burning_after_extinction | newly_ignited
-        has_ignited_next = state.has_ignited | newly_ignited
-        ignition_times_s_next = np.where(
-            newly_ignited, new_current_time_s, state.ignition_times_s
-        )
-        burnout_times_s_next = np.where(
-            newly_ignited,
-            new_current_time_s + self._config.burn_duration_s,
-            state.burnout_times_s,
-        )
-
         return FireState(
-            ignition_times_s=ignition_times_s_next,
-            burnout_times_s=burnout_times_s_next,
-            is_burning=is_burning_next,
-            has_ignited=has_ignited_next,
+            ignition_times_s=np.where(
+                newly_ignited, new_current_time_s, state.ignition_times_s
+            ),
+            burnout_times_s=np.where(
+                newly_ignited,
+                new_current_time_s + self._config.burn_duration_s,
+                state.burnout_times_s,
+            ),
+            is_burning=is_burning_after_extinction | newly_ignited,
+            has_ignited=state.has_ignited | newly_ignited,
             current_time_s=new_current_time_s,
         )

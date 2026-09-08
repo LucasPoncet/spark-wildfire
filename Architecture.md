@@ -17,7 +17,7 @@ Reference for every file in the repository: what it does, what it depends on, wh
 | Abbreviations | Never. `rate_of_spread`, not `ros`. `digital_elevation_model`, not `dem` |
 | Paper notation | Allowed **only** inside the body of a function whose name states which equation it implements |
 | Comments | None |
-| Docstrings | None |
+| Docstrings | Google style: one-line summary, then `Args:` / `Returns:` / `Raises:`. Concise — the signature carries the types |
 | Type annotations | Mandatory on every function signature and dataclass field |
 | Array operations | Vectorized numpy. No Python loops over cells |
 | File scope | One primary class or one cohesive group of pure functions per file |
@@ -49,27 +49,27 @@ scripts/                ← imports everything, imported by nothing
  
 Every quantity that varies across the domain is a field: a function from position to value. The fire engine, the mesh, and the acoustic channel query fields by position and never know which implementation is behind them.
  
-### `scalar_field_protocol.py`
+### `scalar_field_protocol.py` ✅ implemented
  
 **Owns:** `ScalarFieldProtocol` with method `sample(positions_xyz: ndarray) -> ndarray`, mapping `(n, 3) -> (n,)`.
 **Never:** Contains any implementation.
  
-### `vector_field_protocol.py`
+### `vector_field_protocol.py` ✅ implemented
  
 **Owns:** `VectorFieldProtocol` with method `sample(positions_xyz: ndarray) -> ndarray`, mapping `(n, 3) -> (n, 3)`.
 **Never:** Contains any implementation.
  
-### `uniform_scalar_field.py`
+### `uniform_scalar_field.py` ✅ implemented
  
 **Owns:** `UniformScalarField`. Returns the same float at every position. Used on day one for: elevation (0.0 = flat), fuel load (constant kg/m²), attenuation coefficient (constant m⁻¹).
 **Never:** Knows about meshes or fire.
  
-### `uniform_vector_field.py`
+### `uniform_vector_field.py` ✅ implemented
  
 **Owns:** `UniformVectorField`. Returns the same 3D vector everywhere. Day-one wind model: one direction and speed across the whole domain.
 **Never:** Reads fire state.
  
-### `constant_wind_field.py`
+### `constant_wind_field.py` ✅ implemented
  
 **Owns:** `ConstantWindField`. Named constructor from `(wind_speed_m_per_s, wind_bearing_rad)` producing a 3D vector. Thin wrapper over `UniformVectorField` that makes the physical meaning explicit.
 **Never:** Contains time-varying logic.
@@ -85,10 +85,17 @@ Every quantity that varies across the domain is a field: a function from positio
  
 **Extension → higher-resolution DEMs:** IGN RGE Alti 1 m, Copernicus EU-DEM 25 m. Same file, just a different file path at construction.
  
-### `random_tree_placement_field.py`
+### `patchy_density_field.py` ✅ implemented
+
+**Owns:** `PatchyDensityField`. Gaussian density bumps around hand-placed centers over a sparse background. Feeds `RandomTreePlacementField` as its `density_field`, producing dense stands and clearings instead of a uniform forest.
+**Never:** Places trees itself — it answers density queries, nothing more.
+
+### `random_tree_placement_field.py` ✅ implemented
  
 **Owns:** Forest generation. Returns fuel load at any position from a spatial model of tree placement. This file is the single place where forest complexity lives.
 **Never:** Simulates fire or computes propagation.
+
+**Implementation note:** `sample` must never build a dense `(n_positions, n_trees)` array. It uses a `scipy.spatial.cKDTree` pair query truncated at 3σ, so cost scales with the trees actually near each query position. The dense form needs 642 GB at 1 km × 0.5 m spacing; the KD-tree form runs in 8 s.
  
 **Extension path (each layer adds one feature, no rewrite):**
  
@@ -135,28 +142,32 @@ The 2D→3D upgrade is invisible to everything downstream: the mesh constructor 
  
 ## `src/spark/fire/` — fire propagation
  
-### `spread_engine_protocol.py`
+### `spread_engine_protocol.py` ✅ implemented
  
-**Owns:** `SpreadEngineProtocol` with methods: `initialize(mesh, fuel_field, wind_field) -> FireState`, `step(state, dt) -> FireState`.
+**Owns:** `SpreadEngineProtocol` with methods: `initialize(mesh, fuel_field, wind_field) -> FireState`, `ignite_cells(state, cell_indices) -> FireState`, `step(state, dt) -> FireState`.
+
+`ignite_cells` belongs on the protocol because burnout time and flammability are engine-owned knowledge: the cellular automaton reads a fixed `burn_duration_s` from its config, while the Balbi engine derives burnout from the fuel's residence time. A free function could know neither. It is vectorized and idempotent — cells with no fuel or already ignited are skipped — so a script ignites one cell or a lightning scatter through the same call.
 **Never:** Contains implementation.
  
 All engines satisfy this protocol. Scripts and the simulation context only see this type. Swapping engines is a config change, not a code change.
  
-### `fire_state.py`
+### `fire_state.py` ✅ implemented
  
-**Owns:** `FireState` dataclass. Fields: `ignition_times_s (n,)`, `burnout_times_s (n,)`, `is_burning (n,)`, `has_ignited (n,)`, `current_time_s`. Immutable — `step` returns a new instance.
+**Owns:** `FireState` dataclass. Every array is marked `writeable = False` at construction, so immutability holds through the arrays and not only through the field bindings. Fields: `ignition_times_s (n,)`, `burnout_times_s (n,)`, `is_burning (n,)`, `has_ignited (n,)`, `current_time_s`. Immutable — `step` returns a new instance.
 **Never:** Contains logic or computation.
  
 **Extension → per-cell physical quantities:** when using the Balbi ROS engine, `FireState` gains optional fields: `flame_height_m (n,)`, `mean_flame_temperature_k (n,)`, `mass_loss_rate_kg_per_s (n,)`. These feed the acoustic source model with physically grounded amplitudes instead of constants.
  
-### `fuel_properties.py`
+### `fuel_properties.py` ✅ implemented
  
-**Owns:** `FuelProperties` frozen dataclass. Fields: `surface_area_to_volume_ratio_per_m`, `fuel_bed_depth_m`, `packing_ratio`, `fuel_load_kg_per_m2`, `fuel_density_kg_per_m3`, `moisture_content_fraction`. Plus named presets as classmethods: `FuelProperties.pine_needles()`, `FuelProperties.excelsior()`.
+**Owns:** `FuelProperties` frozen dataclass. Six measured fields: `fuel_density_kg_per_m3`, `moisture_content_fraction`, `surface_area_to_volume_ratio_per_m`, `fuel_load_kg_per_m2`, `residence_time_s`, `fuel_bed_depth_m`. Plus named presets as classmethods: `FuelProperties.pine_needle_litter()`.
+
+`packing_ratio` is **not** a field — it is `σ / (ρ_v e)`, so storing it would allow it to disagree with the fields it derives from. It and every other derived quantity live as pure functions in `rate_of_spread_equations.py`, which is what lets this file compute nothing.
 **Never:** Computes anything.
  
 **Extension → more presets:** add classmethods for Mediterranean maquis, grassland, Corsican scrub. Each is one classmethod returning hardcoded values from published fuel models.
  
-### `rate_of_spread_equations.py`
+### `rate_of_spread_equations.py` ✅ implemented
  
 **Owns:** Pure functions only. The only file where paper notation (β, σ, γ, etc.) is permitted inside function bodies.
  
@@ -164,31 +175,40 @@ Functions to implement:
  
 | Function | Source | Status |
 |---|---|---|
-| `compute_flame_tilt_angle_rad` | Balbi 2009 Eq. 2 | To implement |
-| `compute_rate_of_spread_balbi_2009` | Balbi 2009 Eq. 11a–11b | To implement |
+| `compute_flame_tilt_angle_rad` | Balbi 2009 Eq. 2 | ✅ |
+| `compute_rate_of_spread_balbi_2009` | Balbi 2009 Eq. 11a–11b | ✅ |
+| `compute_reduced_rate_of_spread_balbi_2009` | Balbi 2009 Eq. 13 | ✅ |
+| `compute_packing_ratio` | Balbi 2009 Table 2 | ✅ |
+| `compute_optical_depth_m` | Balbi 2009 Table 2 | ✅ |
+| `compute_absorption_coefficient` | Balbi 2009 Table 2 | ✅ |
+| `compute_moisture_damping_factor` | Balbi 2009 §2.5 | ✅ |
+| `compute_base_rate_of_spread_m_per_s` | Balbi 2009 Eq. 15 | ✅ |
+| `compute_radiant_fraction_velocity_m_per_s` | Balbi 2009 §2.3 E7 | ✅ |
 | `compute_rate_of_spread_balbi_2020` | Balbi 2020 Eq. 28 | Extension |
-| `compute_ignition_energy_j_per_kg` | Balbi 2020 Eq. 9 | Extension |
+| `compute_ignition_energy_j_per_kg` | Balbi 2020 Eq. 9 | ✅ |
 | `compute_extinction_depth_m` | Balbi 2020 Eq. 12 | Extension |
-| `compute_radiative_coefficient` | Balbi 2020 Eq. 16 | Extension |
+| `compute_radiative_coefficient` | Balbi 2009 Eq. 14 | ✅ |
 | `compute_flame_height_m` | Balbi 2020 Eq. 23 | Extension |
-| `compute_upward_gas_velocity` | Balbi 2020 Eq. B9 | Extension |
+| `compute_upward_gas_velocity_m_per_s` | Balbi 2009 Eq. 15 | ✅ |
 | `compute_mean_flame_temperature_k` | Balbi 2020 Eq. B11 | Extension |
 | `compute_rate_of_spread_rothermel` | Rothermel 1972 Eq. 42 | Optional baseline |
  
 **Never:** Holds state, imports meshes or engines.
 **Vectorized:** every function takes arrays and returns arrays. The engine calls them once per timestep for all cells, not per cell.
  
-### `cellular_automaton_spread_engine.py`
+### `cellular_automaton_spread_engine.py` ✅ implemented
  
 **Owns:** `CellularAutomatonSpreadEngine`. Alexandridis 2008 probabilistic ignition rules. Queries the mesh for neighbors and directions, queries the wind field for wind at each cell, applies probabilistic ignition.
 **Never:** Implements ROS physics — it calls `rate_of_spread_equations.py` if it needs a physical ignition probability, or uses its own probabilistic rules.
  
 **Extension → firebrand transport:** burning cells emit firebrands that land at a distance drawn from a distribution, igniting cells not adjacent to the fire front. One additional method, contained within this file.
  
-### `rate_of_spread_engine.py`
+### `rate_of_spread_engine.py` ✅ implemented
  
 **Owns:** `RateOfSpreadEngine`. The physically-grounded engine. For each burning cell, projects wind onto each neighbor direction, calls `compute_rate_of_spread_balbi_2009` to get R in m/s, converts to ignition delay `cell_distance_m / rate_of_spread_m_per_s`, updates `FireState`.
 **Never:** Contains the ROS equations themselves.
+
+**Scheme:** fire crossing one edge is an arrival time problem. A cell igniting at `t` schedules an arrival at each neighbor at `t + distance / R`, with `R` evaluated from the wind and slope resolved along that edge; a cell ignites at the earliest arrival offered. Ignition times are therefore near-independent of `dt` — verified to 1e-9 relative between `dt = 1 s` and `dt = 10 s`. A burnt cell keeps its scheduled arrivals, because with pine needle litter a cell burns out in 20 s while fire needs 31 s to cross a 0.5 m edge; retracting them would stall the front entirely.
  
 **Extension → Balbi 2020 upgrade:** swap `compute_rate_of_spread_balbi_2009` for `compute_rate_of_spread_balbi_2020` inside this engine. One function call change.
  
@@ -209,7 +229,7 @@ Functions to implement:
  
 The forward acoustic render is: `received_levels = gain_matrix.T @ source_amplitudes`. This one line is the source–channel model made literal in code.
  
-### `burning_cell_source_model.py`
+### `burning_cell_source_model.py` ✅ implemented
  
 **Owns:** `BurningCellSourceModel`. Takes a `FireState`, returns `(source_positions_xyz, source_amplitudes)`. The only bridge between the fire domain and the acoustic domain.
 **Never:** Knows about receivers, channels, or propagation.
@@ -354,7 +374,7 @@ Moves bytes. Never transforms scientific content.
  
 May import from everywhere. Nothing imports it back. Every function takes data and returns a `matplotlib.Figure`. **None of them calls `savefig`** — that is `scripts/`' job.
  
-### `fire_state_plotter.py`
+### `fire_state_plotter.py` ✅ implemented
  
 **Owns:** Grid-state image (burning/burnt/unburnt colormap), ignition-time heatmap, fire perimeter animation frames.
  
@@ -402,7 +422,7 @@ Mirror the `src/` tree. Each test file tests one source file.
 | Test file | What it asserts |
 |---|---|
 | `test_square_grid_mesh.py` ✅ | Cell count, positions, neighbor connectivity, distances, unit directions |
-| `test_rate_of_spread_equations.py` | Balbi 2009 Fig. 3 reproduction: ROS vs wind for known fuel parameters |
+| `test_rate_of_spread_equations.py` ✅ | Table 2 startup values, Fig. 6 reduced curve, closed form against the implicit Eq. 13b |
 | `test_exponential_attenuation_channel.py` | Gain matrix shape, inverse-square-law sanity, symmetry |
 | `test_inverse_does_not_import_forward_model.py` | `inverse/` has no import path to `fire/`, `terrain/`, `fields/`, or `acoustic/` |
 | `test_fire_state_immutability.py` | `step()` returns a new `FireState`, original is unchanged |

@@ -114,3 +114,57 @@ Where each published equation is implemented.
 | `θ` | `front_bearing_rad` | rad |
 | — | `gain_matrix_source_by_receiver` | — |
 | — | `receiver_signal_levels` | — |
+
+---
+
+## Balbi 2009 — implemented model
+
+The constants above are the Balbi **2020** set. Balbi 2009, implemented in
+`rate_of_spread_equations.py`, uses its own values. Only the constants the
+code actually uses are defined; the rest arrive with Eq. 3 and Eq. 4.
+
+| Symbol | Code name | Unit | Value |
+|---|---|---|---|
+| `T_a` | `AMBIENT_TEMPERATURE_K` | K | `300.0` |
+| `T_i` | `IGNITION_TEMPERATURE_K` | K | `600.0` |
+| `Δh_v` | `LATENT_HEAT_OF_EVAPORATION_J_PER_KG` | J kg⁻¹ | `2.3e6` |
+| `C_pv` | `FUEL_SPECIFIC_HEAT_J_PER_KG_K` | J kg⁻¹ K⁻¹ | `2000.0` |
+| `a` | `MOISTURE_WEIGHTING_COEFFICIENT` | — | `0.05` |
+| `R_00` | `BASE_MASS_FLUX_KG_PER_M2_S` | kg m⁻² s⁻¹ | `0.05` |
+| `u_00` | `BASE_VELOCITY_COEFFICIENT_M3_PER_KG` | m³ kg⁻¹ | `80.0` |
+| — | `RADIANT_FRACTION_ROS_MULTIPLIER` | — | `12.0` |
+| `A_0` | `DRY_RADIATIVE_COEFFICIENT` | — | `2.25` |
+| — | `MAXIMUM_FLAME_TILT_ANGLE_RAD` | rad | `1.4` |
+
+### Fuel bed
+
+| Symbol | Code name | Unit |
+|---|---|---|
+| `ρ_v` | `fuel_density_kg_per_m3` | kg m⁻³ |
+| `m` | `moisture_content_fraction` | — |
+| `s_v` | `surface_area_to_volume_ratio_per_m` | m⁻¹ |
+| `σ` | `fuel_load_kg_per_m2` | kg m⁻² |
+| `τ` | `residence_time_s` | s |
+| `e` | `fuel_bed_depth_m` | m |
+
+### Derived, as pure functions
+
+| Symbol | Function | Unit |
+|---|---|---|
+| `β` | `compute_packing_ratio` | — |
+| `δ` | `compute_optical_depth_m` | m |
+| `μ` | `compute_absorption_coefficient` | — |
+| `u_0` | `compute_upward_gas_velocity_m_per_s` | m s⁻¹ |
+| `q` | `compute_ignition_energy_j_per_kg` | J kg⁻¹ |
+| `1 + a m` | `compute_moisture_damping_factor` | — |
+| `R_0` | `compute_base_rate_of_spread_m_per_s` | m s⁻¹ |
+| `A` | `compute_radiative_coefficient` | — |
+| `ν_0` | `compute_radiant_fraction_velocity_m_per_s` | m s⁻¹ |
+| `γ` | `compute_flame_tilt_angle_rad` | rad |
+| `R` | `compute_rate_of_spread_balbi_2009` | m s⁻¹ |
+| `r` | `compute_reduced_rate_of_spread_balbi_2009` | — |
+
+**`m` is a fraction in `FuelProperties` and a percentage in Eq. 14 and 15.**
+`compute_moisture_damping_factor` is the single place that converts, so no
+other function has to remember.
+

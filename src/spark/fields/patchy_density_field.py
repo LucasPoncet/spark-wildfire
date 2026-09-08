@@ -1,4 +1,4 @@
-"""A scalar density field built from a few Gaussian density bumps over a sparse background."""
+"""A scalar density field: Gaussian density bumps over a sparse background."""
 
 import numpy as np
 import numpy.typing as npt
@@ -28,6 +28,8 @@ class PatchyDensityField:
             raise ValueError("patch peak density must exceed the background density")
         if patch_radius_m <= 0.0:
             raise ValueError("patch radius must be positive")
+        if np.asarray(patch_centers_xy).size == 0:
+            raise ValueError("at least one patch center is required")
 
         self._patch_centers_xy = np.asarray(patch_centers_xy, dtype=np.float64)
         self._patch_peak_density_per_m2 = patch_peak_density_per_m2
@@ -46,7 +48,13 @@ class PatchyDensityField:
         positions_xy = positions_xyz[:, :2]
         displacement_xy = positions_xy[:, None, :] - self._patch_centers_xy[None, :, :]
         squared_distance_m2 = np.sum(displacement_xy**2, axis=2)
-        patch_contribution = np.exp(-0.5 * squared_distance_m2 / self._patch_radius_m**2)
-        peak_above_background = self._patch_peak_density_per_m2 - self._background_density_per_m2
-        density_above_background = peak_above_background * np.max(patch_contribution, axis=1)
+        patch_contribution = np.exp(
+            -0.5 * squared_distance_m2 / self._patch_radius_m**2
+        )
+        peak_above_background = (
+            self._patch_peak_density_per_m2 - self._background_density_per_m2
+        )
+        density_above_background = peak_above_background * np.max(
+            patch_contribution, axis=1
+        )
         return self._background_density_per_m2 + density_above_background

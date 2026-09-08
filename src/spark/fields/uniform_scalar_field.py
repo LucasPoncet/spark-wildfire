@@ -1,4 +1,7 @@
-"""A scalar field returning the same value everywhere, satisfying ScalarFieldProtocol."""
+"""A scalar field returning the same value everywhere.
+
+Satisfies ScalarFieldProtocol.
+"""
 
 import numpy as np
 import numpy.typing as npt
