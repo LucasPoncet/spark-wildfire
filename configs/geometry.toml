@@ -1,0 +1,15 @@
+[domain]
+size_x_m = 100.0
+size_y_m = 100.0
+
+[receivers]
+positions_xy_m = [[30.0, 0.0], [70.0, 0.0]]
+
+[sources]
+true_positions_xy_m = [
+    [25.0, 70.0],
+    [75.0, 35.0],
+    [40.0, 20.0],
+    [60.0, 85.0],
+    [50.0, 50.0],
+]
