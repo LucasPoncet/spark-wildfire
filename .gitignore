@@ -122,3 +122,6 @@ secrets/
 *.onnx
 *.npy
 *.npz
+.claude/
+graft/
+single_source_localization_plan.md
