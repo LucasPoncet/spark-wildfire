@@ -117,6 +117,80 @@ Where each published equation is implemented.
 
 ---
 
+## Atmosphere
+
+ISO 9613-1 atmospheric absorption. Note that `α_b` (dB m⁻¹, per octave band) is a different
+quantity from `α_att` (m⁻¹, the exponential channel coefficient above) and carries a distinct name.
+
+| Symbol | Code name | Unit | Fixed value |
+|---|---|---|---|
+| `c` | `speed_of_sound_m_per_s` | m s⁻¹ | — |
+| `T_air` | `air_temperature_celsius` | °C | — |
+| `RH` | `relative_humidity_percent` | % | — |
+| `P` | `pressure_kpa` | kPa | — |
+| `α_b` | `absorption_coefficients_db_per_m` | dB m⁻¹ | — |
+| `h` | `molar_water_vapour_percent` | % | — |
+| `f_rO` | `oxygen_relaxation_frequency_hz` | Hz | — |
+| `f_rN` | `nitrogen_relaxation_frequency_hz` | Hz | — |
+| `T_0` | `REFERENCE_TEMPERATURE_K` | K | `293.15` |
+| `T_01` | `TRIPLE_POINT_TEMPERATURE_K` | K | `273.16` |
+| `p_r` | `REFERENCE_PRESSURE_KPA` | kPa | `101.325` |
+| — | `NEPER_TO_DECIBEL` | — | `8.686` |
+| — | `SPEED_OF_SOUND_COEFFICIENT_M_PER_S_PER_SQRT_K` | m s⁻¹ K⁻¹ᐟ² | `20.05` |
+
+---
+
+## Single-source localization
+
+Two receivers, one source. Receiver 1 and receiver 2 are ordered; `τ > 0` means the wavefront
+reaches receiver 1 *later*, so `D = −c·τ` is positive when the source is nearer receiver 1.
+
+| Symbol | Code name | Unit | Fixed value |
+|---|---|---|---|
+| `s1`, `s2` | `receiver_1_xy_m`, `receiver_2_xy_m` | m | — |
+| `x_hat` | `position_xy_m` | m | — |
+| `x_true` | `true_position_xy_m` | m | — |
+| `Σ_xy` | `position_covariance_m2` | m² | — |
+| `B` | `baseline_m` | m | — |
+| `τ` | `time_difference_of_arrival_s` | s | — |
+| `D` | `path_difference_m` | m | — |
+| `r1`, `r2` | `range_receiver_1_m`, `range_receiver_2_m` | m | — |
+| `k` | `level_ratio` | — | — |
+| `ΔL_bm` | `band_level_db` difference | dB | — |
+| `G_bm`, `G_b` | `geometric_level_difference_db` | dB | — |
+| `G_hat` | `geometric_level_difference_db` (fused) | dB | — |
+| `σ²_b` | `window_variance_db2` | dB² | — |
+| `σ²_b / M_eff` | `mean_variance_db2` | dB² | — |
+| `var_G` | `geometric_level_difference_variance_db2` | dB² | — |
+| `var_D` | `path_difference_variance_m2` | m² | — |
+| `χ²_ν` | `reduced_chi_square` | — | — |
+| `T` | `window_duration_s` | s | `0.5` |
+| `M` | `window_count` | — | — |
+| `M_eff` | `effective_window_count` | — | — |
+| `β` | `effective_bandwidth_hz` | Hz | — |
+| `γ²` | `magnitude_squared_coherence` | — | — |
+| — | `INDEPENDENT_WINDOW_FRACTION_AT_HALF_OVERLAP` | — | `0.6` |
+| — | `DEFAULT_NEAR_SINGULAR_TOLERANCE` | — | `0.05` |
+
+### Equation index
+
+| Equation | Source | Implemented in |
+|---|---|---|
+| Speed of sound from temperature | plan §1 | `compute_speed_of_sound_m_per_s` |
+| Atmospheric absorption | ISO 9613-1 | `compute_absorption_coefficients_db_per_m` |
+| Free-field propagation `exp(−α r)/r` with delay | plan §1–2 | `apply_free_field_propagation` |
+| Generalised cross-correlation, PHAT weighting | plan §4.1 | `compute_generalised_cross_correlation_phat` |
+| Octave band edges `f_c/√2`, `f_c·√2` | plan §4.2 | `compute_octave_band_edges_hz` |
+| Windowed band level | plan §4.3 | `compute_band_level_db` |
+| Per-band geometric term `ΔL − α_b·D` | plan §4.4 | `compute_band_level_differences` |
+| Inverse-variance fusion and `χ²_ν` | plan §5.1–5.3 | `fuse_inverse_variance` |
+| Ranges from level ratio | plan §5.4 | `compute_ranges_from_level_ratio` |
+| Baseline-frame triangulation | plan §5.4 | `triangulate_position_xy` |
+| Position covariance from the `(G, D)` Jacobian | plan §5.5 | `compute_position_covariance` |
+| Delay variance from bandwidth and coherence | plan §5.5 | `compute_delay_variance_s2` |
+
+---
+
 ## Balbi 2009 — implemented model
 
 The constants above are the Balbi **2020** set. Balbi 2009, implemented in
