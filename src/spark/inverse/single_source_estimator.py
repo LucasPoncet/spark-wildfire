@@ -3,7 +3,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from src.config.simulation_configuration import LocalizationConfiguration
-from src.spark.atmosphere.atmospheric_absorption import compute_absorption_coefficients_db_per_m
+from src.spark.atmosphere.atmospheric_absorption import (
+    compute_absorption_coefficients_db_per_m,
+)
 from src.spark.atmosphere.atmospheric_conditions import (
     AtmosphericConditions,
     compute_speed_of_sound_m_per_s,
@@ -11,7 +13,9 @@ from src.spark.atmosphere.atmospheric_conditions import (
 from src.spark.inverse.band_level_difference import compute_band_level_differences
 from src.spark.inverse.inverse_variance_fusion import fuse_inverse_variance
 from src.spark.inverse.level_ratio_triangulation import triangulate_from_level_ratio
-from src.spark.inverse.time_difference_of_arrival import estimate_time_difference_of_arrival
+from src.spark.inverse.time_difference_of_arrival import (
+    estimate_time_difference_of_arrival,
+)
 from src.utils.array_types import Float64Array
 
 
@@ -43,7 +47,9 @@ class SingleSourceLocalization:
 def compute_error_ellipse_semi_axes_m(
     position_covariance_m2: Float64Array,
 ) -> tuple[float, float, float]:
-    eigenvalues, eigenvectors = np.linalg.eigh(np.asarray(position_covariance_m2, dtype=np.float64))
+    eigenvalues, eigenvectors = np.linalg.eigh(
+        np.asarray(position_covariance_m2, dtype=np.float64)
+    )
     order = np.argsort(eigenvalues)[::-1]
     eigenvalues = np.clip(eigenvalues[order], 0.0, None)
     major_direction = eigenvectors[:, order[0]]
@@ -65,7 +71,9 @@ def localize_single_source(
 ) -> SingleSourceLocalization:
     receiver_1 = np.asarray(receiver_1_xy_m, dtype=np.float64)
     receiver_2 = np.asarray(receiver_2_xy_m, dtype=np.float64)
-    speed_of_sound_m_per_s = compute_speed_of_sound_m_per_s(conditions.air_temperature_celsius)
+    speed_of_sound_m_per_s = compute_speed_of_sound_m_per_s(
+        conditions.air_temperature_celsius
+    )
     baseline_m = float(np.linalg.norm(receiver_2 - receiver_1))
 
     arrival = estimate_time_difference_of_arrival(
@@ -80,7 +88,8 @@ def localize_single_source(
     alignment_shift_samples = int(round(arrival.delay_s * sample_rate_hz))
 
     absorption_coefficients_db_per_m = compute_absorption_coefficients_db_per_m(
-        np.asarray(configuration.bands.center_frequencies_hz, dtype=np.float64), conditions
+        np.asarray(configuration.bands.center_frequencies_hz, dtype=np.float64),
+        conditions,
     )
     band_differences = compute_band_level_differences(
         signal_1,

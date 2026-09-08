@@ -5,7 +5,7 @@ from typing import Self
 import numpy as np
 import numpy.typing as npt
 
-from spark.fields.uniform_vector_field import UniformVectorField
+from src.spark.fields.uniform_vector_field import UniformVectorField
 
 
 class ConstantWindField(UniformVectorField):

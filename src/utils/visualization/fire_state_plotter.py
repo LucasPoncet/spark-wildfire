@@ -13,8 +13,8 @@ import numpy as np
 import numpy.typing as npt
 from matplotlib.figure import Figure
 
-from spark.fire.fire_state import FireState
-from spark.terrain.square_grid_mesh import SquareGridMesh
+from src.spark.fire.fire_state import FireState
+from src.spark.terrain.square_grid_mesh import SquareGridMesh
 
 UNBURNT_GROUND_COLOR_RGB = (42, 38, 32)
 BURNT_COLOR_RGB = (43, 38, 34)

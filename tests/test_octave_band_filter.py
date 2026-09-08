@@ -2,11 +2,16 @@ import numpy as np
 import pytest
 
 from src.audio.band_level_meter import compute_band_level_db, make_analysis_window
-from src.audio.octave_band_filter import apply_octave_bandpass, compute_octave_band_edges_hz
+from src.audio.octave_band_filter import (
+    apply_octave_bandpass,
+    compute_octave_band_edges_hz,
+)
 from src.config.simulation_configuration import BandConfiguration
 
 
-def test_band_edges_span_one_octave(bands: BandConfiguration, sample_rate_hz: int) -> None:
+def test_band_edges_span_one_octave(
+    bands: BandConfiguration, sample_rate_hz: int
+) -> None:
     lower_hz, upper_hz = compute_octave_band_edges_hz(
         1000.0, sample_rate_hz, bands.maximum_edge_fraction_of_nyquist
     )
@@ -47,7 +52,9 @@ def test_every_configured_band_passes_a_tone_at_its_center_frequency(
             bands.maximum_edge_fraction_of_nyquist,
         )
         gain_db = 20.0 * np.log10(np.std(filtered[interior]) / np.std(tone[interior]))
-        assert gain_db > -1.0, f"band {center_frequency_hz} Hz attenuates its own centre"
+        assert gain_db > -1.0, (
+            f"band {center_frequency_hz} Hz attenuates its own centre"
+        )
 
 
 def test_bandpass_rejects_a_tone_two_octaves_away(

@@ -10,10 +10,10 @@ from typing import Protocol, runtime_checkable
 import numpy as np
 import numpy.typing as npt
 
-from spark.fields.scalar_field_protocol import ScalarFieldProtocol
-from spark.fields.vector_field_protocol import VectorFieldProtocol
-from spark.fire.fire_state import FireState
-from spark.terrain.mesh_protocol import MeshProtocol
+from src.spark.fields.scalar_field_protocol import ScalarFieldProtocol
+from src.spark.fields.vector_field_protocol import VectorFieldProtocol
+from src.spark.fire.fire_state import FireState
+from src.spark.terrain.mesh_protocol import MeshProtocol
 
 
 @runtime_checkable

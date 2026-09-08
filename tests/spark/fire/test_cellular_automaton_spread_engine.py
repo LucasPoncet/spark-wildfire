@@ -1,15 +1,15 @@
 import numpy as np
 import pytest
 
-from spark.fields.constant_wind_field import ConstantWindField
-from spark.fields.uniform_scalar_field import UniformScalarField
-from spark.fire.cellular_automaton_spread_engine import (
+from src.spark.fields.constant_wind_field import ConstantWindField
+from src.spark.fields.uniform_scalar_field import UniformScalarField
+from src.spark.fire.cellular_automaton_spread_engine import (
     CellularAutomatonSpreadEngine,
     CellularAutomatonSpreadEngineConfig,
 )
-from spark.fire.fire_state import FireState
-from spark.fire.spread_engine_protocol import SpreadEngineProtocol
-from spark.terrain.square_grid_mesh import SquareGridMesh
+from src.spark.fire.fire_state import FireState
+from src.spark.fire.spread_engine_protocol import SpreadEngineProtocol
+from src.spark.terrain.square_grid_mesh import SquareGridMesh
 
 GRID_EXTENT_M = 40.0
 CELL_SPACING_M = 1.0

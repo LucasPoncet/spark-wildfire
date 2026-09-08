@@ -8,7 +8,10 @@ from src.audio.band_level_meter import (
     make_analysis_window,
 )
 from src.audio.octave_band_filter import apply_octave_bandpass
-from src.audio.signal_alignment import compute_valid_index_range, shift_signal_by_samples
+from src.audio.signal_alignment import (
+    compute_valid_index_range,
+    shift_signal_by_samples,
+)
 from src.config.simulation_configuration import BandConfiguration, WindowConfiguration
 from src.utils.array_types import Float64Array
 
@@ -50,7 +53,8 @@ def compute_band_level_differences(
 
     window_sample_count = int(round(window_configuration.duration_s * sample_rate_hz))
     hop_sample_count = max(
-        int(round(window_sample_count * (1.0 - window_configuration.overlap_fraction))), 1
+        int(round(window_sample_count * (1.0 - window_configuration.overlap_fraction))),
+        1,
     )
     window = make_analysis_window(window_sample_count)
     first_index, last_index = compute_valid_index_range(
@@ -60,14 +64,20 @@ def compute_band_level_differences(
         first_index, last_index, window_sample_count, hop_sample_count
     )
     if len(window_starts) < 2:
-        raise ValueError("at least two analysis windows are required to estimate a variance")
+        raise ValueError(
+            "at least two analysis windows are required to estimate a variance"
+        )
 
     window_count = len(window_starts)
-    effective_window_count = compute_effective_window_count(window_count, window_configuration)
+    effective_window_count = compute_effective_window_count(
+        window_count, window_configuration
+    )
 
     means_db: list[float] = []
     window_variances_db2: list[float] = []
-    for center_frequency_hz, absorption_db_per_m in zip(centers_hz, absorption, strict=True):
+    for center_frequency_hz, absorption_db_per_m in zip(
+        centers_hz, absorption, strict=True
+    ):
         band_1 = apply_octave_bandpass(
             first,
             float(center_frequency_hz),
@@ -87,8 +97,12 @@ def compute_band_level_differences(
         )
         estimates_db = np.array(
             [
-                compute_band_level_db(band_1[start : start + window_sample_count], window)
-                - compute_band_level_db(band_2[start : start + window_sample_count], window)
+                compute_band_level_db(
+                    band_1[start : start + window_sample_count], window
+                )
+                - compute_band_level_db(
+                    band_2[start : start + window_sample_count], window
+                )
                 - absorption_db_per_m * path_difference_m
                 for start in window_starts
             ],

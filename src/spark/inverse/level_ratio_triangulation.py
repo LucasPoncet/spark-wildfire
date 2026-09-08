@@ -25,7 +25,10 @@ def is_near_perpendicular_bisector(
     geometric_level_difference_db: float,
     near_singular_tolerance: float,
 ) -> bool:
-    return abs(compute_level_ratio(geometric_level_difference_db) - 1.0) < near_singular_tolerance
+    return (
+        abs(compute_level_ratio(geometric_level_difference_db) - 1.0)
+        < near_singular_tolerance
+    )
 
 
 def compute_ranges_from_level_ratio(
@@ -35,7 +38,9 @@ def compute_ranges_from_level_ratio(
     level_ratio = compute_level_ratio(geometric_level_difference_db)
     denominator = level_ratio - 1.0
     if abs(denominator) < LEVEL_RATIO_FLOOR:
-        denominator = np.copysign(LEVEL_RATIO_FLOOR, denominator if denominator != 0.0 else 1.0)
+        denominator = np.copysign(
+            LEVEL_RATIO_FLOOR, denominator if denominator != 0.0 else 1.0
+        )
     range_receiver_1_m = path_difference_m / denominator
     return float(range_receiver_1_m), float(level_ratio * range_receiver_1_m)
 

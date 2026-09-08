@@ -15,7 +15,7 @@ Combustion and Flame 156(12). doi:10.1016/j.combustflame.2009.07.010
 import numpy as np
 import numpy.typing as npt
 
-from spark.fire.fuel_properties import FuelProperties
+from src.spark.fire.fuel_properties import FuelProperties
 
 AMBIENT_TEMPERATURE_K = 300.0
 IGNITION_TEMPERATURE_K = 600.0

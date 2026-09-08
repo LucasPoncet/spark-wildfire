@@ -26,10 +26,10 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 
-from spark.fields.scalar_field_protocol import ScalarFieldProtocol
-from spark.fields.vector_field_protocol import VectorFieldProtocol
-from spark.fire.fire_state import FireState
-from spark.terrain.mesh_protocol import MeshProtocol
+from src.spark.fields.scalar_field_protocol import ScalarFieldProtocol
+from src.spark.fields.vector_field_protocol import VectorFieldProtocol
+from src.spark.fire.fire_state import FireState
+from src.spark.terrain.mesh_protocol import MeshProtocol
 
 WIND_SPEED_EPSILON_M_PER_S = 1e-9
 FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION = 1e-6

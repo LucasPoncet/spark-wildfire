@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from spark.fields.constant_wind_field import ConstantWindField
-from spark.fields.uniform_scalar_field import UniformScalarField
-from spark.fire.fire_state import FireState
-from spark.fire.fuel_properties import FuelProperties
-from spark.fire.rate_of_spread_engine import RateOfSpreadEngine
-from spark.fire.rate_of_spread_equations import compute_base_rate_of_spread_m_per_s
-from spark.fire.spread_engine_protocol import SpreadEngineProtocol
-from spark.terrain.square_grid_mesh import SquareGridMesh
+from src.spark.fields.constant_wind_field import ConstantWindField
+from src.spark.fields.uniform_scalar_field import UniformScalarField
+from src.spark.fire.fire_state import FireState
+from src.spark.fire.fuel_properties import FuelProperties
+from src.spark.fire.rate_of_spread_engine import RateOfSpreadEngine
+from src.spark.fire.rate_of_spread_equations import compute_base_rate_of_spread_m_per_s
+from src.spark.fire.spread_engine_protocol import SpreadEngineProtocol
+from src.spark.terrain.square_grid_mesh import SquareGridMesh
 
 CELL_SPACING_M = 0.5
 WIND_SPEED_M_PER_S = 3.0

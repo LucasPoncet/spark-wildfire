@@ -190,7 +190,9 @@ def load_geometry_configuration(path: Path) -> GeometryConfiguration:
             size_x_m=float(domain["size_x_m"]), size_y_m=float(domain["size_y_m"])
         ),
         receiver_positions_xy_m=receiver_positions_xy_m,
-        true_source_positions_xy_m=to_position_array(document["sources"]["true_positions_xy_m"]),
+        true_source_positions_xy_m=to_position_array(
+            document["sources"]["true_positions_xy_m"]
+        ),
     )
 
 
@@ -218,9 +220,13 @@ def load_localization_configuration(path: Path) -> LocalizationConfiguration:
     triangulation = document["triangulation"]
     return LocalizationConfiguration(
         bands=BandConfiguration(
-            center_frequencies_hz=tuple(float(value) for value in bands["center_frequencies_hz"]),
+            center_frequencies_hz=tuple(
+                float(value) for value in bands["center_frequencies_hz"]
+            ),
             filter_order=int(bands["filter_order"]),
-            maximum_edge_fraction_of_nyquist=float(bands["maximum_edge_fraction_of_nyquist"]),
+            maximum_edge_fraction_of_nyquist=float(
+                bands["maximum_edge_fraction_of_nyquist"]
+            ),
         ),
         window=WindowConfiguration(
             duration_s=float(window["duration_s"]),
@@ -252,9 +258,13 @@ def load_simulation_configuration(
     configuration_directory: Path = DEFAULT_CONFIGURATION_DIRECTORY,
 ) -> SimulationConfiguration:
     return SimulationConfiguration(
-        atmosphere=load_atmospheric_conditions(configuration_directory / ENVIRONMENT_FILENAME),
+        atmosphere=load_atmospheric_conditions(
+            configuration_directory / ENVIRONMENT_FILENAME
+        ),
         data=load_data_configuration(configuration_directory / DATA_FILENAME),
-        geometry=load_geometry_configuration(configuration_directory / GEOMETRY_FILENAME),
+        geometry=load_geometry_configuration(
+            configuration_directory / GEOMETRY_FILENAME
+        ),
         forward_model=load_forward_model_configuration(
             configuration_directory / FORWARD_MODEL_FILENAME
         ),

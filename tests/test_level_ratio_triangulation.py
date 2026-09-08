@@ -63,9 +63,15 @@ def test_round_trip_recovers_the_true_ranges(
     level_difference_db, path_difference_m = make_observables(
         true_position_xy_m, receiver_1_xy_m, receiver_2_xy_m
     )
-    range_1_m, range_2_m = compute_ranges_from_level_ratio(level_difference_db, path_difference_m)
-    assert range_1_m == pytest.approx(np.linalg.norm(true_position_xy_m - receiver_1_xy_m))
-    assert range_2_m == pytest.approx(np.linalg.norm(true_position_xy_m - receiver_2_xy_m))
+    range_1_m, range_2_m = compute_ranges_from_level_ratio(
+        level_difference_db, path_difference_m
+    )
+    assert range_1_m == pytest.approx(
+        np.linalg.norm(true_position_xy_m - receiver_1_xy_m)
+    )
+    assert range_2_m == pytest.approx(
+        np.linalg.norm(true_position_xy_m - receiver_2_xy_m)
+    )
 
 
 def test_negative_domain_side_mirrors_across_the_baseline(
@@ -75,7 +81,9 @@ def test_negative_domain_side_mirrors_across_the_baseline(
     level_difference_db, path_difference_m = make_observables(
         true_position_xy_m, receiver_1_xy_m, receiver_2_xy_m
     )
-    range_1_m, range_2_m = compute_ranges_from_level_ratio(level_difference_db, path_difference_m)
+    range_1_m, range_2_m = compute_ranges_from_level_ratio(
+        level_difference_db, path_difference_m
+    )
     mirrored = triangulate_position_xy(
         range_1_m, range_2_m, receiver_1_xy_m, receiver_2_xy_m, -1.0
     )
@@ -185,7 +193,9 @@ def test_covariance_grows_as_the_source_approaches_the_bisector(
     assert traces == sorted(traces)
 
 
-def test_identical_receiver_positions_are_rejected(receiver_1_xy_m: Float64Array) -> None:
+def test_identical_receiver_positions_are_rejected(
+    receiver_1_xy_m: Float64Array,
+) -> None:
     with pytest.raises(ValueError):
         triangulate_position_xy(10.0, 10.0, receiver_1_xy_m, receiver_1_xy_m, 1.0)
 

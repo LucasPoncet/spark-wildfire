@@ -14,7 +14,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.spatial import cKDTree
 
-from spark.fields.scalar_field_protocol import ScalarFieldProtocol
+from src.spark.fields.scalar_field_protocol import ScalarFieldProtocol
 
 FOOTPRINT_TRUNCATION_RADII = 3.0
 

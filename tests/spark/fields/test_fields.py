@@ -1,13 +1,13 @@
 import numpy as np
 import pytest
 
-from spark.fields.constant_wind_field import ConstantWindField
-from spark.fields.patchy_density_field import PatchyDensityField
-from spark.fields.random_tree_placement_field import RandomTreePlacementField
-from spark.fields.scalar_field_protocol import ScalarFieldProtocol
-from spark.fields.uniform_scalar_field import UniformScalarField
-from spark.fields.uniform_vector_field import UniformVectorField
-from spark.fields.vector_field_protocol import VectorFieldProtocol
+from src.spark.fields.constant_wind_field import ConstantWindField
+from src.spark.fields.patchy_density_field import PatchyDensityField
+from src.spark.fields.random_tree_placement_field import RandomTreePlacementField
+from src.spark.fields.scalar_field_protocol import ScalarFieldProtocol
+from src.spark.fields.uniform_scalar_field import UniformScalarField
+from src.spark.fields.uniform_vector_field import UniformVectorField
+from src.spark.fields.vector_field_protocol import VectorFieldProtocol
 
 POSITIONS_XYZ = np.array(
     [[0.0, 0.0, 0.0], [10.0, 5.0, 0.0], [-3.0, 7.0, 2.0]], dtype=np.float64

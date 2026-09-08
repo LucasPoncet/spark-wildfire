@@ -53,7 +53,9 @@ def estimate_over_clips(
     configuration: SimulationConfiguration,
 ) -> list[ClipEstimate]:
     forward_model = configuration.forward_model
-    signal_to_noise_ratio_db = forward_model.receiver_noise.requested_signal_to_noise_ratio_db
+    signal_to_noise_ratio_db = (
+        forward_model.receiver_noise.requested_signal_to_noise_ratio_db
+    )
     estimates: list[ClipEstimate] = []
     for clip_index, clip in enumerate(clips):
         receiver_signals = render_receiver_signals(
@@ -70,7 +72,9 @@ def estimate_over_clips(
                 signal_to_noise_ratio_db,
                 np.random.default_rng(forward_model.random_seed + clip_index),
             )
-        localization = localizer.localize(receiver_signals[0], receiver_signals[1], sample_rate_hz)
+        localization = localizer.localize(
+            receiver_signals[0], receiver_signals[1], sample_rate_hz
+        )
         semi_major_m, semi_minor_m, _ = compute_error_ellipse_semi_axes_m(
             localization.position_covariance_m2
         )
@@ -78,7 +82,9 @@ def estimate_over_clips(
             ClipEstimate(
                 clip_index=clip_index,
                 position_xy_m=localization.position_xy_m,
-                error_m=float(np.linalg.norm(localization.position_xy_m - true_position_xy_m)),
+                error_m=float(
+                    np.linalg.norm(localization.position_xy_m - true_position_xy_m)
+                ),
                 path_difference_m=localization.path_difference_m,
                 geometric_level_difference_db=localization.geometric_level_difference_db,
                 reduced_chi_square=localization.reduced_chi_square,
@@ -187,7 +193,9 @@ def print_header(
     print(f"recording   : {configuration.data.recording.path}")
     print(f"sample rate : {sample_rate_hz} Hz")
     print(f"duration    : {sample_count / sample_rate_hz:.1f} s")
-    print(f"clips       : {clip_count} x {configuration.data.segmentation.clip_duration_s:.1f} s")
+    print(
+        f"clips       : {clip_count} x {configuration.data.segmentation.clip_duration_s:.1f} s"
+    )
     print(f"receivers   : {configuration.geometry.receiver_positions_xy_m.tolist()} m")
     print(
         f"atmosphere  : {configuration.atmosphere.air_temperature_celsius} C, "
@@ -230,7 +238,9 @@ def main() -> None:
         scenarios.append(build_scenario_record(true_position_xy_m, estimates))
 
     metrics_path = write_metrics_document(
-        build_metrics_document(configuration, sample_rate_hz, int(clips.shape[0]), scenarios),
+        build_metrics_document(
+            configuration, sample_rate_hz, int(clips.shape[0]), scenarios
+        ),
         configuration.data.output.metrics_path,
     )
     print(f"metrics written to {metrics_path}")

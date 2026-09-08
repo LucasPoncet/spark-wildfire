@@ -3,7 +3,7 @@ import dataclasses
 import numpy as np
 import pytest
 
-from spark.fire.fire_state import FireState
+from src.spark.fire.fire_state import FireState
 
 CELL_COUNT = 5
 

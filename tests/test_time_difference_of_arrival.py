@@ -7,7 +7,9 @@ from src.audio.signal_alignment import (
     shift_signal_by_samples,
 )
 from src.config.simulation_configuration import DelayEstimationConfiguration
-from src.spark.inverse.time_difference_of_arrival import estimate_time_difference_of_arrival
+from src.spark.inverse.time_difference_of_arrival import (
+    estimate_time_difference_of_arrival,
+)
 
 SEARCH_WINDOW_S: float = 0.02
 
@@ -88,7 +90,11 @@ def test_maximum_delay_bounds_the_search(
 ) -> None:
     base = np.random.default_rng(3).normal(size=sample_rate_hz)
     arrival = estimate_time_difference_of_arrival(
-        shift_signal_by_samples(base, 4000), base, sample_rate_hz, 0.01, delay_estimation
+        shift_signal_by_samples(base, 4000),
+        base,
+        sample_rate_hz,
+        0.01,
+        delay_estimation,
     )
     assert abs(arrival.delay_s) <= 0.01
 

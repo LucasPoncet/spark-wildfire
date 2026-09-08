@@ -24,7 +24,9 @@ def add_white_noise_to_receiver_signals(
 ) -> Float64Array:
     return np.stack(
         [
-            add_white_noise_at_snr_db(channel, signal_to_noise_ratio_db, random_generator)
+            add_white_noise_at_snr_db(
+                channel, signal_to_noise_ratio_db, random_generator
+            )
             for channel in np.atleast_2d(np.asarray(receiver_signals, dtype=np.float64))
         ]
     )

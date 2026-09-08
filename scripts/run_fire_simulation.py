@@ -26,19 +26,19 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.artist import Artist
 from matplotlib.backend_bases import MouseEvent
 
-from spark.fields.constant_wind_field import ConstantWindField
-from spark.fields.patchy_density_field import PatchyDensityField
-from spark.fields.random_tree_placement_field import RandomTreePlacementField
-from spark.fire.cellular_automaton_spread_engine import (
+from src.spark.fields.constant_wind_field import ConstantWindField
+from src.spark.fields.patchy_density_field import PatchyDensityField
+from src.spark.fields.random_tree_placement_field import RandomTreePlacementField
+from src.spark.fire.cellular_automaton_spread_engine import (
     FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION,
     CellularAutomatonSpreadEngine,
     CellularAutomatonSpreadEngineConfig,
 )
-from spark.fire.fuel_properties import FuelProperties
-from spark.fire.rate_of_spread_engine import RateOfSpreadEngine
-from spark.fire.spread_engine_protocol import SpreadEngineProtocol
-from spark.terrain.square_grid_mesh import SquareGridMesh, SquareGridMeshConfig
-from utils.visualization.fire_state_plotter import render_fire_state_rgb_image
+from src.spark.fire.fuel_properties import FuelProperties
+from src.spark.fire.rate_of_spread_engine import RateOfSpreadEngine
+from src.spark.fire.spread_engine_protocol import SpreadEngineProtocol
+from src.spark.terrain.square_grid_mesh import SquareGridMesh, SquareGridMeshConfig
+from src.utils.visualization.fire_state_plotter import render_fire_state_rgb_image
 
 CELLULAR_AUTOMATON_ENGINE = "cellular-automaton"
 RATE_OF_SPREAD_ENGINE = "rate-of-spread"
@@ -51,7 +51,7 @@ WIND_BEARING_RAD = 0.0
 TREE_DENSITY_PER_M2 = 0.1
 TREE_FUEL_LOAD_KG_PER_M2 = 0.25
 TREE_INFLUENCE_RADIUS_M = 2.5
-TREE_LAYOUT_SEED = 42
+TREE_LAYOUT_SEED = 100
 CELLULAR_AUTOMATON_BURN_DURATION_S = 10.0
 
 TREE_BACKGROUND_DENSITY_PER_M2 = 0.01

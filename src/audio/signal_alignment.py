@@ -34,7 +34,9 @@ def align_channel_pair(
 ) -> tuple[Float64Array, Float64Array]:
     first = np.asarray(signal_1, dtype=np.float64)
     second = shift_signal_by_samples(signal_2, shift_samples)
-    first_index, last_index = compute_valid_index_range(first.size, second.size, shift_samples)
+    first_index, last_index = compute_valid_index_range(
+        first.size, second.size, shift_samples
+    )
     if last_index <= first_index:
         raise ValueError("the alignment shift leaves no overlapping samples")
     return first[first_index:last_index], second[first_index:last_index]

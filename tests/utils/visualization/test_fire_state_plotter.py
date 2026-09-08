@@ -1,15 +1,15 @@
 import numpy as np
 from matplotlib.figure import Figure
 
-from spark.fields.constant_wind_field import ConstantWindField
-from spark.fields.uniform_scalar_field import UniformScalarField
-from spark.fire.cellular_automaton_spread_engine import (
+from src.spark.fields.constant_wind_field import ConstantWindField
+from src.spark.fields.uniform_scalar_field import UniformScalarField
+from src.spark.fire.cellular_automaton_spread_engine import (
     FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION,
     CellularAutomatonSpreadEngine,
     CellularAutomatonSpreadEngineConfig,
 )
-from spark.terrain.square_grid_mesh import SquareGridMesh
-from utils.visualization.fire_state_plotter import (
+from src.spark.terrain.square_grid_mesh import SquareGridMesh
+from src.utils.visualization.fire_state_plotter import (
     BURNT_COLOR_RGB,
     plot_fire_state,
     render_fire_state_rgb_image,

@@ -4,7 +4,12 @@ from pathlib import Path
 import pytest
 
 INVERSE_PACKAGE_PATH = Path(__file__).resolve().parents[1] / "src" / "spark" / "inverse"
-FORBIDDEN_PACKAGES = ("src.spark.fire", "src.spark.terrain", "src.spark.fields", "src.spark.acoustic")
+FORBIDDEN_PACKAGES = (
+    "src.spark.fire",
+    "src.spark.terrain",
+    "src.spark.fields",
+    "src.spark.acoustic",
+)
 
 
 def collect_imported_modules(source_path: Path) -> set[str]:
@@ -18,7 +23,9 @@ def collect_imported_modules(source_path: Path) -> set[str]:
     return modules
 
 
-@pytest.mark.parametrize("source_path", sorted(INVERSE_PACKAGE_PATH.glob("*.py")), ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "source_path", sorted(INVERSE_PACKAGE_PATH.glob("*.py")), ids=lambda p: p.name
+)
 def test_inverse_never_imports_the_forward_simulation(source_path: Path) -> None:
     imported = collect_imported_modules(source_path)
     violations = sorted(

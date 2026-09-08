@@ -13,7 +13,9 @@ class FusedEstimate:
     residuals: Float64Array
 
 
-def fuse_inverse_variance(values: Float64Array, variances: Float64Array) -> FusedEstimate:
+def fuse_inverse_variance(
+    values: Float64Array, variances: Float64Array
+) -> FusedEstimate:
     sample_values = np.asarray(values, dtype=np.float64)
     sample_variances = np.asarray(variances, dtype=np.float64)
     if sample_values.size != sample_variances.size:

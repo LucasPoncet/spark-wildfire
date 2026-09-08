@@ -21,12 +21,12 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 
-from spark.fields.scalar_field_protocol import ScalarFieldProtocol
-from spark.fields.vector_field_protocol import VectorFieldProtocol
-from spark.fire.fire_state import FireState
-from spark.fire.fuel_properties import FuelProperties
-from spark.fire.rate_of_spread_equations import compute_rate_of_spread_balbi_2009
-from spark.terrain.mesh_protocol import MeshProtocol
+from src.spark.fields.scalar_field_protocol import ScalarFieldProtocol
+from src.spark.fields.vector_field_protocol import VectorFieldProtocol
+from src.spark.fire.fire_state import FireState
+from src.spark.fire.fuel_properties import FuelProperties
+from src.spark.fire.rate_of_spread_equations import compute_rate_of_spread_balbi_2009
+from src.spark.terrain.mesh_protocol import MeshProtocol
 
 FUEL_LOAD_IGNITION_THRESHOLD_KG_PER_M2 = 1e-6
 

@@ -13,7 +13,9 @@ def segment_recording(
         raise ValueError("overlap_fraction must lie in [0, 1)")
     signal = np.asarray(samples, dtype=np.float64)
     segment_sample_count = int(round(segment_duration_s * sample_rate_hz))
-    hop_sample_count = max(int(round(segment_sample_count * (1.0 - overlap_fraction))), 1)
+    hop_sample_count = max(
+        int(round(segment_sample_count * (1.0 - overlap_fraction))), 1
+    )
     if signal.size < segment_sample_count:
         raise ValueError("recording is shorter than one segment")
     starts = range(0, signal.size - segment_sample_count + 1, hop_sample_count)

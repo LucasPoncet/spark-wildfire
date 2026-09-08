@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from spark.fire.fuel_properties import FuelProperties
+from src.spark.fire.fuel_properties import FuelProperties
 
 
 def test_preset_matches_balbi_2009_table_1() -> None:

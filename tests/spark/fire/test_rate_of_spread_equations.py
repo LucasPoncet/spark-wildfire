@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from spark.fire.fuel_properties import FuelProperties
-from spark.fire.rate_of_spread_equations import (
+from src.spark.fire.fuel_properties import FuelProperties
+from src.spark.fire.rate_of_spread_equations import (
     MAXIMUM_FLAME_TILT_ANGLE_RAD,
     compute_absorption_coefficient,
     compute_base_rate_of_spread_m_per_s,

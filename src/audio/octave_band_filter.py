@@ -51,6 +51,11 @@ def apply_octave_bandpass(
     maximum_edge_fraction_of_nyquist: float,
 ) -> Float64Array:
     sections = design_octave_bandpass(
-        center_frequency_hz, sample_rate_hz, filter_order, maximum_edge_fraction_of_nyquist
+        center_frequency_hz,
+        sample_rate_hz,
+        filter_order,
+        maximum_edge_fraction_of_nyquist,
     )
-    return np.asarray(sosfiltfilt(sections, np.asarray(signal, dtype=np.float64)), dtype=np.float64)
+    return np.asarray(
+        sosfiltfilt(sections, np.asarray(signal, dtype=np.float64)), dtype=np.float64
+    )

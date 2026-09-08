@@ -41,7 +41,9 @@ def compute_generalised_cross_correlation_phat(
         maximum_shift = min(
             int(interpolation_factor * sample_rate_hz * maximum_delay_s), maximum_shift
         )
-    correlation = np.concatenate((correlation[-maximum_shift:], correlation[: maximum_shift + 1]))
+    correlation = np.concatenate(
+        (correlation[-maximum_shift:], correlation[: maximum_shift + 1])
+    )
 
     magnitude = np.abs(correlation)
     peak_index = int(np.argmax(magnitude))
@@ -52,7 +54,9 @@ def compute_generalised_cross_correlation_phat(
         if denominator != 0.0:
             refined_index += 0.5 * (left - right) / denominator
 
-    return (refined_index - maximum_shift) / float(interpolation_factor * sample_rate_hz)
+    return (refined_index - maximum_shift) / float(
+        interpolation_factor * sample_rate_hz
+    )
 
 
 def compute_effective_bandwidth_and_coherence(
@@ -67,14 +71,18 @@ def compute_effective_bandwidth_and_coherence(
         configuration.coherence_segment_sample_count, first.size, second.size
     )
 
-    frequencies_hz, cross_density = csd(first, second, fs=sample_rate_hz, nperseg=segment_length)
+    frequencies_hz, cross_density = csd(
+        first, second, fs=sample_rate_hz, nperseg=segment_length
+    )
     _, density_1 = welch(first, fs=sample_rate_hz, nperseg=segment_length)
     _, density_2 = welch(second, fs=sample_rate_hz, nperseg=segment_length)
 
     coherence = np.abs(cross_density) ** 2 / (density_1 * density_2 + SPECTRUM_FLOOR)
     in_band = (frequencies_hz >= configuration.minimum_analysis_frequency_hz) & (
         frequencies_hz
-        <= configuration.maximum_analysis_frequency_fraction_of_nyquist * 0.5 * sample_rate_hz
+        <= configuration.maximum_analysis_frequency_fraction_of_nyquist
+        * 0.5
+        * sample_rate_hz
     )
     if not np.any(in_band):
         in_band = np.ones_like(frequencies_hz, dtype=bool)
@@ -85,7 +93,9 @@ def compute_effective_bandwidth_and_coherence(
         np.sqrt(np.sum(weights * frequencies_hz[in_band] ** 2) / weight_sum)
     )
     mean_coherence = float(
-        np.clip(np.sum(weights * coherence[in_band]) / weight_sum, 0.0, MAXIMUM_COHERENCE)
+        np.clip(
+            np.sum(weights * coherence[in_band]) / weight_sum, 0.0, MAXIMUM_COHERENCE
+        )
     )
     return effective_bandwidth_hz, mean_coherence
 

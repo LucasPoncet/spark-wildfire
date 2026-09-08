@@ -1,6 +1,8 @@
 import numpy as np
 
-from src.spark.atmosphere.atmospheric_absorption import compute_absorption_coefficients_db_per_m
+from src.spark.atmosphere.atmospheric_absorption import (
+    compute_absorption_coefficients_db_per_m,
+)
 from src.spark.atmosphere.atmospheric_conditions import (
     AtmosphericConditions,
     compute_speed_of_sound_m_per_s,
@@ -35,7 +37,9 @@ def apply_free_field_propagation(
     reference_distance_m: float,
 ) -> Float64Array:
     signal = np.asarray(source_signal, dtype=np.float64)
-    speed_of_sound_m_per_s = compute_speed_of_sound_m_per_s(conditions.air_temperature_celsius)
+    speed_of_sound_m_per_s = compute_speed_of_sound_m_per_s(
+        conditions.air_temperature_celsius
+    )
     propagation_delay_s = source_receiver_distance_m / speed_of_sound_m_per_s
 
     padding_sample_count = int(np.ceil(propagation_delay_s * sample_rate_hz)) + 1
@@ -51,7 +55,9 @@ def apply_free_field_propagation(
     )
     delay_phase = np.exp(-2j * np.pi * frequencies_hz * propagation_delay_s)
 
-    return np.fft.irfft(spectrum * spreading_gain * absorption_gain * delay_phase, n=padded.size)
+    return np.fft.irfft(
+        spectrum * spreading_gain * absorption_gain * delay_phase, n=padded.size
+    )
 
 
 def render_receiver_signals(
@@ -63,16 +69,25 @@ def render_receiver_signals(
     reference_distance_m: float,
 ) -> Float64Array:
     source_position = np.asarray(source_position_xy_m, dtype=np.float64)
-    receiver_positions = np.atleast_2d(np.asarray(receiver_positions_xy_m, dtype=np.float64))
+    receiver_positions = np.atleast_2d(
+        np.asarray(receiver_positions_xy_m, dtype=np.float64)
+    )
     distances_m = np.linalg.norm(receiver_positions - source_position, axis=1)
 
     channels = [
         apply_free_field_propagation(
-            source_signal, sample_rate_hz, float(distance_m), conditions, reference_distance_m
+            source_signal,
+            sample_rate_hz,
+            float(distance_m),
+            conditions,
+            reference_distance_m,
         )
         for distance_m in distances_m
     ]
     common_sample_count = max(channel.size for channel in channels)
     return np.stack(
-        [np.pad(channel, (0, common_sample_count - channel.size)) for channel in channels]
+        [
+            np.pad(channel, (0, common_sample_count - channel.size))
+            for channel in channels
+        ]
     )

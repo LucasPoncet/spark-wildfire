@@ -21,8 +21,12 @@ def test_segments_carry_consecutive_content(sample_rate_hz: int) -> None:
     assert clips[1][0] == float(5 * sample_rate_hz)
 
 
-def test_configured_segmentation_covers_the_recording(sample_rate_hz: int, clip_duration_s: float) -> None:
-    clips = segment_recording(np.zeros(50 * sample_rate_hz), sample_rate_hz, clip_duration_s, 0.0)
+def test_configured_segmentation_covers_the_recording(
+    sample_rate_hz: int, clip_duration_s: float
+) -> None:
+    clips = segment_recording(
+        np.zeros(50 * sample_rate_hz), sample_rate_hz, clip_duration_s, 0.0
+    )
     assert clips.shape[1] == int(clip_duration_s * sample_rate_hz)
 
 

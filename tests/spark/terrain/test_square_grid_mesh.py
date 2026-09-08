@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from spark.terrain.mesh_protocol import MeshProtocol
-from spark.terrain.square_grid_mesh import SquareGridMesh, SquareGridMeshConfig
+from src.spark.terrain.mesh_protocol import MeshProtocol
+from src.spark.terrain.square_grid_mesh import SquareGridMesh, SquareGridMeshConfig
 
 SMALL_EXTENT_M = 10.0
 SMALL_SPACING_M = 1.0

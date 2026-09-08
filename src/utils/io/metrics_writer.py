@@ -28,6 +28,7 @@ def append_metrics_record(record: Mapping[str, Any], metrics_path: Path) -> Path
 def write_metrics_document(document: Mapping[str, Any], metrics_path: Path) -> Path:
     metrics_path.parent.mkdir(parents=True, exist_ok=True)
     metrics_path.write_text(
-        json.dumps(to_json_safe(document), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(to_json_safe(document), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     return metrics_path

@@ -1,7 +1,10 @@
 import numpy as np
 import pytest
 
-from src.audio.octave_band_filter import apply_octave_bandpass, compute_octave_band_edges_hz
+from src.audio.octave_band_filter import (
+    apply_octave_bandpass,
+    compute_octave_band_edges_hz,
+)
 from src.config.simulation_configuration import BandConfiguration
 from src.spark.acoustic.free_field_propagation import (
     apply_free_field_propagation,
@@ -9,7 +12,9 @@ from src.spark.acoustic.free_field_propagation import (
     render_receiver_signals,
 )
 from src.spark.acoustic.receiver_noise import add_white_noise_at_snr_db
-from src.spark.atmosphere.atmospheric_absorption import compute_absorption_coefficients_db_per_m
+from src.spark.atmosphere.atmospheric_absorption import (
+    compute_absorption_coefficients_db_per_m,
+)
 from src.spark.atmosphere.atmospheric_conditions import (
     AtmosphericConditions,
     compute_speed_of_sound_m_per_s,
@@ -20,7 +25,9 @@ NEAR_RANGE_M: float = 30.0
 FAR_RANGE_M: float = 70.0
 
 
-def make_source_signal(sample_rate_hz: int, duration_s: float = 2.0, seed: int = 0) -> Float64Array:
+def make_source_signal(
+    sample_rate_hz: int, duration_s: float = 2.0, seed: int = 0
+) -> Float64Array:
     return np.random.default_rng(seed).normal(size=int(duration_s * sample_rate_hz))
 
 
@@ -44,7 +51,9 @@ def compute_arrival_slice(
     sample_rate_hz: int,
 ) -> slice:
     delay_samples = compute_delay_samples(distance_m, atmosphere, sample_rate_hz)
-    return slice(delay_samples + margin_samples, delay_samples + sample_count - margin_samples)
+    return slice(
+        delay_samples + margin_samples, delay_samples + sample_count - margin_samples
+    )
 
 
 def measure_band_level_difference_db(
@@ -71,7 +80,11 @@ def measure_band_level_difference_db(
             np.std(
                 band[
                     compute_arrival_slice(
-                        distance_m, signal.size, margin_samples, atmosphere, sample_rate_hz
+                        distance_m,
+                        signal.size,
+                        margin_samples,
+                        atmosphere,
+                        sample_rate_hz,
                     )
                 ]
             )
@@ -96,8 +109,12 @@ def test_propagation_applies_the_expected_delay(
     received = apply_free_field_propagation(
         impulse, sample_rate_hz, distance_m, atmosphere, reference_distance_m
     )
-    expected_delay_samples = compute_delay_samples(distance_m, atmosphere, sample_rate_hz)
-    assert int(np.argmax(np.abs(received))) == pytest.approx(100 + expected_delay_samples, abs=1.0)
+    expected_delay_samples = compute_delay_samples(
+        distance_m, atmosphere, sample_rate_hz
+    )
+    assert int(np.argmax(np.abs(received))) == pytest.approx(
+        100 + expected_delay_samples, abs=1.0
+    )
 
 
 def test_propagation_output_is_long_enough_to_hold_the_delayed_signal(
@@ -125,12 +142,16 @@ def test_band_level_difference_matches_the_forward_model(
         center_frequency_hz, atmosphere, bands, sample_rate_hz, reference_distance_m
     )
     absorption_db_per_m = float(
-        compute_absorption_coefficients_db_per_m(np.array([center_frequency_hz]), atmosphere)[0]
+        compute_absorption_coefficients_db_per_m(
+            np.array([center_frequency_hz]), atmosphere
+        )[0]
     )
     expected_level_difference_db = 20.0 * np.log10(
         FAR_RANGE_M / NEAR_RANGE_M
     ) + absorption_db_per_m * (FAR_RANGE_M - NEAR_RANGE_M)
-    assert measured_level_difference_db == pytest.approx(expected_level_difference_db, abs=0.25)
+    assert measured_level_difference_db == pytest.approx(
+        expected_level_difference_db, abs=0.25
+    )
 
 
 def test_band_edge_absorption_brackets_the_measured_level_difference(
@@ -154,7 +175,8 @@ def test_band_edge_absorption_brackets_the_measured_level_difference(
     assert (
         geometric_level_difference_db + edge_absorption_db_per_m[0] * path_difference_m
         <= measured_level_difference_db
-        <= geometric_level_difference_db + edge_absorption_db_per_m[1] * path_difference_m
+        <= geometric_level_difference_db
+        + edge_absorption_db_per_m[1] * path_difference_m
     )
 
 
@@ -175,8 +197,12 @@ def test_render_returns_one_channel_per_receiver_on_a_common_clock(
     assert rendered.shape[1] >= signal.size
 
 
-def test_added_noise_reaches_the_requested_signal_to_noise_ratio(sample_rate_hz: int) -> None:
+def test_added_noise_reaches_the_requested_signal_to_noise_ratio(
+    sample_rate_hz: int,
+) -> None:
     signal = make_source_signal(sample_rate_hz, duration_s=1.0)
     noisy = add_white_noise_at_snr_db(signal, 20.0, np.random.default_rng(3))
-    measured_snr_db = 10.0 * np.log10(np.mean(signal**2) / np.mean((noisy - signal) ** 2))
+    measured_snr_db = 10.0 * np.log10(
+        np.mean(signal**2) / np.mean((noisy - signal) ** 2)
+    )
     assert measured_snr_db == pytest.approx(20.0, abs=0.5)
