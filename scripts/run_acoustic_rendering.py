@@ -1,23 +1,24 @@
-"""Runs a fire simulation and renders receiver signals at every timestep.
+"""Runs a fire simulation and renders receiver signals at fixed observations.
 
 Usage:
     uv run python scripts/run_acoustic_rendering.py
     uv run python scripts/run_acoustic_rendering.py --configs other_dir
 
-This is the handoff to the inverse team: it writes receiver positions, a
-`(timestep, receiver, sample)` signal array, per-timestep ground truth, the
-resolved configuration and a metadata sidecar into
-`results/simulation_runs/<timestamp>/`. Zero domain logic lives here.
+This is the handoff to the inverse team. The fire steps at its own
+physics-bounded timestep; the array listens every `observation_interval_s`
+of simulated time, which is an experimental choice and not a physical one.
+Serialisation belongs to `simulation_run_writer`, so nothing here formats a
+file. Zero domain logic lives here either.
 """
 
 import argparse
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from src.config.acoustic_rendering_configuration import compute_observation_stride
 from src.config.fire_simulation_configuration import (
     ALL_BURNING_EMISSION,
     FRONT_ONLY_EMISSION,
@@ -27,6 +28,7 @@ from src.config.simulation_configuration import (
     ForwardSimulationConfiguration,
     load_forward_simulation_configuration,
 )
+from src.config.simulation_context_factory import build_simulation_context
 from src.spark.acoustic.burning_cell_source_model import (
     BurningCellSources,
     compute_fire_front_mask,
@@ -36,24 +38,21 @@ from src.spark.acoustic.burning_cell_source_model import (
     identify_connected_front_components,
 )
 from src.spark.acoustic.free_field_propagation import render_receiver_signals
-from src.spark.acoustic.receiver_placement import place_receivers_from_configuration
 from src.spark.atmosphere.atmospheric_conditions import (
     AtmosphericConditions,
     compute_speed_of_sound_m_per_s,
 )
-from src.spark.fields.constant_wind_field import ConstantWindField
-from src.spark.fields.uniform_scalar_field import UniformScalarField
 from src.spark.fire.fire_state import FireState
 from src.spark.fire.fuel_properties import FuelProperties
-from src.spark.fire.rate_of_spread_engine import RateOfSpreadEngine
 from src.spark.fire.rate_of_spread_equations import compute_rate_of_spread_balbi_2009
 from src.spark.fire.time_step_calculator import compute_maximum_stable_time_step_s
-from src.spark.terrain.square_grid_mesh import SquareGridMesh, SquareGridMeshConfig
-from src.utils.array_types import Float64Array, Int64Array
+from src.spark.terrain.mesh_protocol import MeshProtocol
+from src.utils.array_types import Float32Array, Float64Array, Int64Array
+from src.utils.io.simulation_run_writer import write_simulation_run
 
-OUTPUT_ROOT: Path = Path("results/simulation_runs")
-PROGRESS_REPORT_INTERVAL_STEPS: int = 50
-FUEL_PRESETS = {"pine_needle_litter": FuelProperties.pine_needle_litter}
+OUTPUT_ROOT: Path = Path("results/simulations")
+PROGRESS_REPORT_INTERVAL_OBSERVATIONS: int = 5
+MINIMUM_RECEIVER_RANGE_SPREAD_M: float = 1.0
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -67,48 +66,10 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_fuel(fuel_preset_name: str) -> FuelProperties:
-    """Look up a fuel preset by the name the configuration carries.
-
-    Args:
-        fuel_preset_name: Key into the supported preset table.
-
-    Returns:
-        The fuel bed.
-
-    Raises:
-        ValueError: If the preset name is not supported.
-    """
-    if fuel_preset_name not in FUEL_PRESETS:
-        supported = ", ".join(sorted(FUEL_PRESETS))
-        raise ValueError(
-            f"unknown fuel preset {fuel_preset_name!r}; supported presets: {supported}"
-        )
-    return FUEL_PRESETS[fuel_preset_name]()
-
-
-def compute_ignition_cell_index(
-    mesh: SquareGridMesh, x_fraction: float, y_fraction: float
-) -> int:
-    """Turn fractional grid coordinates into a row-major cell index.
-
-    Args:
-        mesh: The grid the fire runs on.
-        x_fraction: Position along x, 0.0 at the origin corner, 1.0 at the far edge.
-        y_fraction: Position along y, same convention.
-
-    Returns:
-        Index into the mesh's cell arrays.
-    """
-    ignition_x = int(x_fraction * (mesh.n_x - 1))
-    ignition_y = int(y_fraction * (mesh.n_y - 1))
-    return ignition_y * mesh.n_x + ignition_x
-
-
 def extract_sources(
     emission_model: str,
     fire_state: FireState,
-    mesh: SquareGridMesh,
+    mesh: MeshProtocol,
     fuel: FuelProperties,
 ) -> BurningCellSources:
     """Pick the emission model the configuration names.
@@ -174,7 +135,7 @@ def compute_component_centroids_xy_m(
 
 
 def compute_output_sample_count(
-    mesh: SquareGridMesh,
+    mesh: MeshProtocol,
     receiver_positions_xy_m: Float64Array,
     conditions: AtmosphericConditions,
     segment_duration_s: float,
@@ -230,7 +191,7 @@ def fit_to_sample_count(signals: Float64Array, sample_count: int) -> Float64Arra
     return np.pad(signals, ((0, 0), (0, sample_count - signals.shape[1])))
 
 
-def render_one_timestep(
+def render_one_observation(
     sources: BurningCellSources,
     receiver_positions_xy_m: Float64Array,
     conditions: AtmosphericConditions,
@@ -278,10 +239,13 @@ def render_one_timestep(
 
 def build_ground_truth_record(
     fire_state: FireState,
-    mesh: SquareGridMesh,
+    mesh: MeshProtocol,
     sources: BurningCellSources,
+    receiver_positions_xy_m: Float64Array,
+    ignition_positions_xy_m: Float64Array,
+    cell_area_m2: float,
 ) -> dict[str, Any]:
-    """Describe where the fire actually is at one timestep.
+    """Describe where the fire actually is at one observation.
 
     Components are labelled on the advancing front regardless of the emission
     model, so the ground truth answers "how many separate fires" identically
@@ -290,7 +254,11 @@ def build_ground_truth_record(
     Args:
         fire_state: State to read burning and ignited cells from.
         mesh: The grid, supplying positions and connectivity.
-        sources: The radiating cells this timestep rendered.
+        sources: The radiating cells this observation rendered.
+        receiver_positions_xy_m: Float64 array of shape (n_receivers, 2).
+        ignition_positions_xy_m: Float64 array of shape (k, 2), where the
+            fires were lit, used to report how far the front has travelled.
+        cell_area_m2: Ground area one cell covers, in square metres.
 
     Returns:
         Mapping ready to serialise into ground_truth.json.
@@ -302,75 +270,110 @@ def build_ground_truth_record(
     centroids_xy_m = compute_component_centroids_xy_m(
         component_labels, mesh.cell_positions_xyz
     )
+    front_positions_xy_m = mesh.cell_positions_xyz[is_on_front, :2]
+    front_centroid_xy_m = (
+        front_positions_xy_m.mean(axis=0)
+        if front_positions_xy_m.shape[0] > 0
+        else np.full(2, np.nan)
+    )
     return {
         "simulation_time_s": float(fire_state.current_time_s),
         "component_count": int(centroids_xy_m.shape[0]),
         "component_centroids_xy_m": centroids_xy_m.tolist(),
+        "front_centroid_xy_m": front_centroid_xy_m.tolist(),
+        "front_radius_m": compute_front_radius_m(
+            front_positions_xy_m, ignition_positions_xy_m
+        ),
         "front_cell_count": int(np.count_nonzero(is_on_front)),
         "burning_cell_count": int(np.count_nonzero(fire_state.is_burning)),
+        "ignited_cell_count": int(np.count_nonzero(fire_state.has_ignited)),
+        "burnt_area_m2": float(np.count_nonzero(fire_state.has_ignited) * cell_area_m2),
         "source_count": int(sources.burning_cell_indices.size),
+        "receiver_range_spread_m": compute_receiver_range_spread_m(
+            front_centroid_xy_m.reshape(1, 2)
+            if front_positions_xy_m.shape[0] > 0
+            else np.empty((0, 2)),
+            receiver_positions_xy_m,
+        ),
     }
 
 
-def build_mesh(config: ForwardSimulationConfiguration) -> SquareGridMesh:
-    """Build the grid the fire runs on.
+def compute_front_radius_m(
+    front_positions_xy_m: Float64Array,
+    ignition_positions_xy_m: Float64Array,
+) -> float:
+    """Mean distance from each front cell to its nearest ignition point.
+
+    Grows monotonically while the fire spreads, unlike any one component's
+    centroid, which jumps between fragments when the burning band is thinner
+    than the gap between two burning cells.
 
     Args:
-        config: Run configuration, for extent, spacing and connectivity.
+        front_positions_xy_m: Float64 array of shape (n_front, 2).
+        ignition_positions_xy_m: Float64 array of shape (k, 2).
 
     Returns:
-        The mesh.
+        Mean travelled distance in metres, or 0.0 with no front.
     """
-    return SquareGridMesh(
-        SquareGridMeshConfig(
-            extent_x_m=config.mesh.extent_x_m,
-            extent_y_m=config.mesh.extent_y_m,
-            cell_spacing_m=config.mesh.cell_spacing_m,
-            use_diagonal_neighbors=config.mesh.use_diagonal_neighbors,
-        )
+    if front_positions_xy_m.shape[0] == 0:
+        return 0.0
+    distances_m = np.linalg.norm(
+        front_positions_xy_m[:, None, :] - ignition_positions_xy_m[None, :, :], axis=2
     )
+    return float(distances_m.min(axis=1).mean())
 
 
-def write_run(
-    output_directory: Path,
-    config: ForwardSimulationConfiguration,
+def compute_receiver_range_spread_m(
+    centroids_xy_m: Float64Array,
     receiver_positions_xy_m: Float64Array,
-    receiver_signals: Float64Array,
-    ground_truth: list[dict[str, Any]],
-    time_step_s: float,
-) -> None:
-    """Save one run to disk.
+) -> float:
+    """Spread of source-receiver ranges from the largest front component.
+
+    Zero means every receiver sits at the same distance from the fire, so
+    every level ratio is one and every time difference of arrival is zero.
+    Such a scene carries no information for any estimator.
 
     Args:
-        output_directory: Directory to create and write into.
-        config: The resolved run configuration.
+        centroids_xy_m: Float64 array of shape (n_components, 2), largest first.
         receiver_positions_xy_m: Float64 array of shape (n_receivers, 2).
-        receiver_signals: Float64 array of shape (n_steps, n_receivers, n_samples).
-        ground_truth: One record per timestep.
-        time_step_s: The timestep the run used, in seconds.
+
+    Returns:
+        Largest minus smallest range, in metres, or 0.0 with no front.
     """
-    output_directory.mkdir(parents=True, exist_ok=True)
-    (output_directory / "config.json").write_text(
-        json.dumps(config.to_dict(), indent=2) + "\n", encoding="utf-8"
+    if centroids_xy_m.shape[0] == 0:
+        return 0.0
+    ranges_m = np.linalg.norm(receiver_positions_xy_m - centroids_xy_m[0], axis=1)
+    return float(ranges_m.max() - ranges_m.min())
+
+
+def verify_geometry_is_informative(
+    ignition_xy_m: Float64Array,
+    receiver_positions_xy_m: Float64Array,
+    minimum_range_spread_m: float,
+) -> None:
+    """Refuse to render a scene whose receivers are equidistant from the fire.
+
+    Checked against the ignition point before any rendering starts, because a
+    front spreading symmetrically from the centre of a receiver ring stays
+    equidistant for the whole run.
+
+    Args:
+        ignition_xy_m: Float64 array of shape (2,), where the fire starts.
+        receiver_positions_xy_m: Float64 array of shape (n_receivers, 2).
+        minimum_range_spread_m: Smallest accepted spread of ranges, in metres.
+
+    Raises:
+        ValueError: If the ranges are too close to equal to carry information.
+    """
+    range_spread_m = compute_receiver_range_spread_m(
+        ignition_xy_m.reshape(-1, 2), receiver_positions_xy_m
     )
-    np.save(output_directory / "receiver_positions_xy_m.npy", receiver_positions_xy_m)
-    np.save(output_directory / "receiver_signals.npy", receiver_signals)
-    (output_directory / "ground_truth.json").write_text(
-        json.dumps(ground_truth, indent=2) + "\n", encoding="utf-8"
-    )
-    (output_directory / "metadata.json").write_text(
-        json.dumps(
-            {
-                "time_step_s": time_step_s,
-                "time_step_count": int(receiver_signals.shape[0]),
-                "sample_rate_hz": config.acoustic.sample_rate_hz,
-                "receiver_count": int(receiver_positions_xy_m.shape[0]),
-            },
-            indent=2,
+    if range_spread_m < minimum_range_spread_m:
+        raise ValueError(
+            f"receiver ranges span only {range_spread_m:.3f} m around the ignition "
+            f"point, below the {minimum_range_spread_m} m minimum; this geometry is "
+            f"degenerate and carries no information"
         )
-        + "\n",
-        encoding="utf-8",
-    )
 
 
 def main() -> Path:
@@ -381,102 +384,130 @@ def main() -> Path:
     """
     arguments = parse_arguments()
     config = load_forward_simulation_configuration(arguments.configs)
-
-    mesh = build_mesh(config)
-    fuel = build_fuel(config.fire.fuel_preset_name)
-    wind_field = ConstantWindField.from_speed_and_bearing(
-        config.wind.wind_speed_m_per_s, config.wind.wind_bearing_rad
-    )
-    fuel_field = UniformScalarField(fuel.fuel_load_kg_per_m2)
+    context = build_simulation_context(config)
 
     maximum_rate_of_spread_m_per_s = float(
         compute_rate_of_spread_balbi_2009(
-            np.array([config.wind.wind_speed_m_per_s]), np.zeros(1), fuel
+            np.array([config.wind.wind_speed_m_per_s]), np.zeros(1), context.fuel
         )[0]
     )
     time_step_s = compute_maximum_stable_time_step_s(
-        mesh,
+        context.mesh,
         maximum_rate_of_spread_m_per_s,
         config.fire.time_step_safety_factor,
-        fuel.residence_time_s,
+        context.fuel.residence_time_s,
+    )
+    observation_stride = compute_observation_stride(
+        config.acoustic.observation_interval_s, time_step_s
     )
 
-    engine = RateOfSpreadEngine(fuel)
-    fire_state = engine.initialize(mesh, fuel_field, wind_field)
-    fire_state = engine.ignite_cells(
-        fire_state,
-        np.array(
-            [
-                compute_ignition_cell_index(
-                    mesh,
-                    config.fire.ignition_cell_x_fraction,
-                    config.fire.ignition_cell_y_fraction,
-                )
-            ],
-            dtype=np.int64,
-        ),
+    fire_state = context.spread_engine.initialize(
+        context.mesh, context.fuel_field, context.wind_field
+    )
+    fire_state = context.spread_engine.ignite_cells(
+        fire_state, context.ignition_cell_indices
     )
 
-    receiver_positions_xy_m = place_receivers_from_configuration(
-        config.receiver, config.mesh.extent_x_m, config.mesh.extent_y_m
+    ignition_positions_xy_m = context.mesh.cell_positions_xyz[
+        context.ignition_cell_indices, :2
+    ]
+    verify_geometry_is_informative(
+        ignition_positions_xy_m,
+        context.receiver_positions_xy_m,
+        MINIMUM_RECEIVER_RANGE_SPREAD_M,
     )
     output_sample_count = compute_output_sample_count(
-        mesh,
-        receiver_positions_xy_m,
+        context.mesh,
+        context.receiver_positions_xy_m,
         config.atmosphere,
         config.acoustic.segment_duration_s,
         config.acoustic.sample_rate_hz,
     )
 
-    time_step_count = max(1, int(config.fire.simulation_duration_s / time_step_s))
+    observation_count = max(
+        1,
+        int(config.fire.simulation_duration_s / config.acoustic.observation_interval_s),
+    )
     print(
-        f"dt = {time_step_s:.2f} s over {time_step_count} steps, "
-        f"{receiver_positions_xy_m.shape[0]} receivers, "
-        f"{output_sample_count} samples per segment, "
+        f"{config.experiment.name}: {config.experiment.title}\n"
+        f"{config.fire.spread_engine_name} engine, dt = {time_step_s:.2f} s, "
+        f"observing every {observation_stride} steps "
+        f"({config.acoustic.observation_interval_s:.0f} s) for {observation_count} "
+        f"observations, {context.receiver_positions_xy_m.shape[0]} receivers, "
+        f"{output_sample_count} samples per block, "
         f"emission = {config.fire.emission_model}"
     )
 
     all_receiver_signals: list[Float64Array] = []
     ground_truth: list[dict[str, Any]] = []
-    for step_index in range(time_step_count):
-        fire_state = engine.step(fire_state, time_step_s)
-        sources = extract_sources(config.fire.emission_model, fire_state, mesh, fuel)
+    for observation_index in range(observation_count):
+        for _ in range(observation_stride):
+            fire_state = context.spread_engine.step(fire_state, time_step_s)
+        sources = extract_sources(
+            config.fire.emission_model, fire_state, context.mesh, context.fuel
+        )
         if sources.burning_cell_indices.size == 0:
             all_receiver_signals.append(
                 np.zeros(
-                    (receiver_positions_xy_m.shape[0], output_sample_count),
+                    (context.receiver_positions_xy_m.shape[0], output_sample_count),
                     dtype=np.float64,
                 )
             )
         else:
             all_receiver_signals.append(
-                render_one_timestep(
+                render_one_observation(
                     sources,
-                    receiver_positions_xy_m,
+                    context.receiver_positions_xy_m,
                     config.atmosphere,
                     config,
                     output_sample_count,
                 )
             )
-        record = build_ground_truth_record(fire_state, mesh, sources)
+        record = build_ground_truth_record(
+            fire_state,
+            context.mesh,
+            sources,
+            context.receiver_positions_xy_m,
+            ignition_positions_xy_m,
+            config.mesh.cell_spacing_m**2,
+        )
         ground_truth.append(record)
-        if step_index % PROGRESS_REPORT_INTERVAL_STEPS == 0:
+        if observation_index % PROGRESS_REPORT_INTERVAL_OBSERVATIONS == 0:
             print(
-                f"step {step_index}/{time_step_count}, "
-                f"t = {record['simulation_time_s']:.1f} s, "
+                f"observation {observation_index}/{observation_count}, "
+                f"t = {record['simulation_time_s']:.0f} s, "
                 f"burning = {record['burning_cell_count']}, "
                 f"front = {record['front_cell_count']}, "
-                f"components = {record['component_count']}"
+                f"components = {record['component_count']}, "
+                f"radius = {record['front_radius_m']:.1f} m, "
+                f"range spread = {record['receiver_range_spread_m']:.1f} m"
             )
 
-    output_directory = OUTPUT_ROOT / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    write_run(
+    receiver_signals: Float32Array = np.stack(all_receiver_signals).astype(np.float32)
+    output_directory = (
+        OUTPUT_ROOT
+        / config.experiment.name
+        / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    )
+    write_simulation_run(
         output_directory,
-        config,
-        receiver_positions_xy_m,
-        np.stack(all_receiver_signals),
+        config.to_dict(),
+        context.receiver_positions_xy_m,
+        receiver_signals,
         ground_truth,
-        time_step_s,
+        {
+            "experiment_name": config.experiment.name,
+            "experiment_title": config.experiment.title,
+            "configuration_directory": str(arguments.configs),
+            "time_step_s": time_step_s,
+            "observation_interval_s": config.acoustic.observation_interval_s,
+            "observation_count": int(receiver_signals.shape[0]),
+            "sample_rate_hz": config.acoustic.sample_rate_hz,
+            "receiver_count": int(context.receiver_positions_xy_m.shape[0]),
+            "spread_engine_name": config.fire.spread_engine_name,
+            "emission_model": config.fire.emission_model,
+            "ignition_positions_xy_m": ignition_positions_xy_m.tolist(),
+        },
     )
     print(output_directory)
     return output_directory

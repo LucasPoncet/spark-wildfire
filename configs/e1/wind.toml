@@ -1,0 +1,4 @@
+[wind]
+wind_speed_m_per_s = 2.0
+wind_bearing_rad = 0.0
+wind_field_type = "constant"

@@ -1,0 +1,4 @@
+[experiment]
+name = "default"
+title = "Default scene"
+description = "The shipped defaults: one spreading front on a 100 m grid, ignited off the centre of a ring of eight receivers."

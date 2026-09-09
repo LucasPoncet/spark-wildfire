@@ -37,6 +37,8 @@ The 2D→3D upgrade is one argument to the mesh constructor: pass an `ElevationF
 | `game_of_life_spread_engine.py` | Simplest engine: neighbor-count rules, fixed burnout | — |
 | `cellular_automaton_spread_engine.py` | Alexandridis 2008 probabilistic rules, optional firebrand transport | Implements ROS physics — imports it |
 | `rate_of_spread_engine.py` | Consumes ROS to compute per-neighbor ignition delays; projects wind onto each neighbor direction | Contains the ROS equations themselves |
+| `static_source_spread_engine.py` | A source that ignites once, burns forever and never lights a neighbour. Rungs E1 and E2 of the ladder | Spreads |
+| `time_step_calculator.py` | The CFL timestep: fire crossing the shortest mesh edge, scaled by a safety factor and clamped by the residence time | Runs the fire |
 
 ### `atmosphere/`
 
@@ -55,7 +57,8 @@ A single definition also prevents the forward and inverse sides drifting to diff
 | File | Owns | Never |
 |---|---|---|
 | `channel_protocol.py` | `Channel` Protocol: `compute_gain_matrix(source_positions_xyz, receiver_positions_xyz) -> Float64Array` shape `(n_src, n_rec)` | — |
-| `burning_cell_source_model.py` | `FireState` → `(source_positions_xyz, source_amplitudes)`. The only bridge from fire to acoustics | Knows about receivers or propagation |
+| `burning_cell_source_model.py` | `FireState` → `BurningCellSources`, under either emission model, plus the front mask and connected-component labelling. The only bridge from fire to acoustics | Knows about receivers or propagation |
+| `receiver_placement.py` | Ring, grid and random receiver layouts, and the dispatcher that resolves a strategy name | Knows what will be rendered to them |
 | `exponential_attenuation_channel.py` | `exp(−αr)/r` gain matrix | — |
 | `measured_impulse_response_channel.py` | Stub for measured `h`; extends the gain to `(n_src, n_rec, n_freq)` | — |
 | `free_field_propagation.py` | Applies a channel **to a waveform**: propagation delay, `1/r` spreading and frequency-dependent ISO 9613-1 absorption, all in one rFFT. Renders one signal per receiver on a common clock | Knows the source position is a fire, or that anyone will invert it |
@@ -88,7 +91,7 @@ Separately, `§5.5`'s delay variance is measured **after** alignment. Measured o
 40 m baseline delay sits inside the Welch segment and collapses the coherence, which inflated
 `σ_D` from 0.014 m to 6.5 m and made the error ellipse meaningless.
 
-**Hard rule, enforced by test** (`tests/test_inverse_module_isolation.py`): nothing under `inverse/` imports from `fire/`, `terrain/`, `fields/`, or `acoustic/`. Its only inputs are receiver signals and receiver positions. This is the structural guarantee that your own pipeline does not commit the leakage defect the paper criticizes. `inverse/` may import `audio/` (signal operations) and `atmosphere/` (assumed air physics), neither of which carries simulation state.
+**Hard rule, enforced by test** (`tests/test_inverse_does_not_import_forward_model.py`): nothing under `inverse/` imports from `fire/`, `terrain/`, `fields/`, or `acoustic/`. Its only inputs are receiver signals and receiver positions. This is the structural guarantee that your own pipeline does not commit the leakage defect the paper criticizes. `inverse/` may import `audio/` (signal operations) and `atmosphere/` (assumed air physics), neither of which carries simulation state.
 
 ### `audio/`
 
@@ -109,10 +112,14 @@ Separately, `§5.5`'s delay variance is measured **after** alignment. Measured o
 | File | Owns |
 |---|---|
 | `simulation_configuration.py` | Nested frozen dataclasses, one per component, plus the TOML loaders that fill them from `configs/` |
-| `component_registry.py` | Name → class maps for meshes, engines, channels, estimators |
+| `experiment_configuration.py` | The scene's name, title and description. The name becomes the run and figure directory, so it is validated as a safe directory name |
+| `component_registry.py` | Name → class maps for meshes, engines, channels and fields, plus `resolve_registered_name` |
+| `simulation_context.py` | The frozen `SimulationContext` holding live protocol instances, the fuel bed, the ignition cells and the receiver layout |
+| `simulation_context_factory.py` | `build_simulation_context(config)`. The composition root, and the only file in the repository that **constructs** a concrete class |
 
 **No tunable value is written in the source.** Everything a run can change lives in `configs/`
-(`environment`, `data`, `geometry`, `forward_model`, `localization`), and `--configs <dir>` swaps
+(`experiment`, `environment`, `data`, `geometry`, `forward_model`, `localization`, `mesh`,
+`wind`, `fire`, `receiver`, `acoustic_rendering`), and `--configs <dir>` swaps
 the whole set. The dataclasses in `simulation_configuration.py` are the single definition of what a
 run can be told; components receive the config object for their own concern
 (`BandConfiguration`, `WindowConfiguration`, `DelayEstimationConfiguration`,
@@ -141,8 +148,8 @@ Both are justified, but they need boundaries or they become the dumping ground.
 
 | File | Owns | Never |
 |---|---|---|
-| `simulation_run_writer.py` | Creates `results/simulation_runs/<run_id>/`, writes resolved config JSON, saves `FireState` snapshots | Formats anything for display |
-| `simulation_run_reader.py` | Loads a run back for replay or analysis | — |
+| `simulation_run_writer.py` | Creates `results/simulations/<run_id>/` and writes the five contract files, signals as float32 | Formats anything for display |
+| `simulation_run_reader.py` | `SimulationRun`, `read_simulation_run` and `list_simulation_runs`. Signals come back memory-mapped | Transforms scientific content |
 | `audio_file_reader.py` | Reads audio, returns `(samples, sample_rate_hz)` | Filters or normalizes |
 | `metrics_writer.py` | Appends metrics as JSON to `results/metrics/` | Computes metrics |
 
@@ -153,10 +160,35 @@ Both are justified, but they need boundaries or they become the dumping ground.
 | File | Owns | Never |
 |---|---|---|
 | `fire_state_plotter.py` | Grid state as a 2D image, ignition-time heatmap | Runs the simulation |
-| `mesh_plotter.py` | Mesh geometry, elevation surface, receiver positions | — |
-| `rate_of_spread_plotter.py` | ROS vs wind, ROS vs moisture — the Balbi Fig. 3 / Fig. 4 reproductions | — |
-| `receiver_signal_plotter.py` | Level traces, bearing estimates against ground truth | Imports from `inverse/` and `fire/` in the same figure without an explicit argument |
+| `mesh_plotter.py` | Scene geometry with the perpendicular bisector and its near-singular band shaded | Imports `inverse/`; the band is pure geometry |
+| `rate_of_spread_plotter.py` | ROS vs wind, slope and moisture — the Balbi Fig. 3 / Fig. 4 reproductions | — |
+| `receiver_signal_plotter.py` | Level traces, the per-band analysis chain, estimates against truth with ellipses, error against noise and against degeneracy, reduced chi-square, front travel with its fit | Imports from `inverse/` and `fire/` in the same figure without an explicit argument |
+| `channel_plotter.py` | ISO 9613-1 `α(f)` and channel gain against range per octave band | Knows what is being propagated |
 
 `visualization/` may import from everywhere — it sits at the top of the dependency graph and nothing imports it back. Every function takes data and returns a `Figure`; **none of them calls `savefig`**, which is `scripts/`' job. That keeps plotting testable and lets the same function serve a notebook and a batch run.
+
+The rule is enforced rather than trusted: `tests/utils/visualization/conftest.py` monkeypatches
+`Figure.savefig` to raise for the whole plotter suite, so a plotter that saves fails the build.
+
+---
+
+### `app/`
+
+Sits at the repository root, outside `src/`, and **nothing in `src/` may import it**.
+
+| File | Owns | Never |
+|---|---|---|
+| `main.py` | The five panels and the run picker | Plots or computes anything |
+| `run_loader.py` | Memoised loading and derived level traces | Decides anything scientific |
+| `export_controls.py` | One export control, shared by every panel | Chooses what a figure contains |
+| `scene_panel.py`, `physics_panel.py`, `channel_panel.py`, `estimate_panel.py`, `failure_modes_panel.py` | Widgets and one plotter call each | Holds physics |
+| `live_mode.py` | Launches the rendering script as a guarded background subprocess | Renders in-process |
+
+The application is a run picker, parameter widgets, calls into `simulation_context_factory`
+and the plotters, and export buttons. A feature that cannot be expressed that way belongs in
+`src/`. Every panel exports through the same plotter call that
+`scripts/export_report_figures.py` uses, so a figure shown in the demo and a figure in the
+report cannot differ. `tests/test_application_holds_no_domain_logic.py` walks the import
+graph and fails if either rule is broken.
 
 ---

@@ -1,21 +1,24 @@
-"""Fuel choice, ignition point and run length of the fire simulation."""
+"""Fuel choice, ignition points, engine and run length of the fire simulation."""
 
 from dataclasses import dataclass
 from typing import Any, Self
 
 FRONT_ONLY_EMISSION: str = "front_only"
 ALL_BURNING_EMISSION: str = "all_burning"
+DEFAULT_IGNITION_POINTS_XY_FRACTION: tuple[tuple[float, float], ...] = ((0.3, 0.3),)
 
 
 @dataclass(frozen=True)
 class FireSimulationConfiguration:
-    """What burns, where it starts, and for how long.
+    """What burns, where it starts, how it spreads, and for how long.
 
     Attributes:
         fuel_preset_name: Name of a FuelProperties classmethod preset.
-        ignition_cell_x_fraction: Ignition point along x as a fraction of the
-            grid extent, 0.0 at the origin corner and 1.0 at the far corner.
-        ignition_cell_y_fraction: Same along y.
+        spread_engine_name: Registered name of the propagation model.
+        fuel_field_type: Registered name of the scalar field carrying fuel.
+        ignition_points_xy_fraction: One or more ignition points, each a
+            fraction of the grid extent along x and y, 0.0 at the origin
+            corner and 1.0 at the far corner.
         simulation_duration_s: Simulated seconds to run for.
         time_step_safety_factor: Fraction of the CFL-limited timestep to use.
         emission_model: Which burning cells radiate, "front_only" for the
@@ -23,32 +26,54 @@ class FireSimulationConfiguration:
     """
 
     fuel_preset_name: str = "pine_needle_litter"
-    ignition_cell_x_fraction: float = 0.5
-    ignition_cell_y_fraction: float = 0.5
-    simulation_duration_s: float = 120.0
+    spread_engine_name: str = "rate_of_spread"
+    fuel_field_type: str = "uniform"
+    ignition_points_xy_fraction: tuple[tuple[float, float], ...] = (
+        DEFAULT_IGNITION_POINTS_XY_FRACTION
+    )
+    simulation_duration_s: float = 1800.0
     time_step_safety_factor: float = 0.9
     emission_model: str = FRONT_ONLY_EMISSION
 
+    @property
+    def ignition_cell_x_fraction(self) -> float:
+        """Position along x of the first ignition point."""
+        return self.ignition_points_xy_fraction[0][0]
+
+    @property
+    def ignition_cell_y_fraction(self) -> float:
+        """Position along y of the first ignition point."""
+        return self.ignition_points_xy_fraction[0][1]
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
-        """Build from a JSON-decoded mapping, filling absent keys with defaults.
+        """Build from a decoded mapping, filling absent keys with defaults.
+
+        Accepts either the list form `ignition_points_xy_fraction` or the
+        single-point form `ignition_cell_x_fraction` plus
+        `ignition_cell_y_fraction`, so every configuration directory and every
+        committed `config.json` written before the ladder still loads.
 
         Args:
             data: Mapping of field name to value.
 
         Returns:
             The configuration.
+
+        Raises:
+            ValueError: If no ignition point is given, or one is not a pair.
         """
         defaults = cls()
         return cls(
             fuel_preset_name=str(
                 data.get("fuel_preset_name", defaults.fuel_preset_name)
             ),
-            ignition_cell_x_fraction=float(
-                data.get("ignition_cell_x_fraction", defaults.ignition_cell_x_fraction)
+            spread_engine_name=str(
+                data.get("spread_engine_name", defaults.spread_engine_name)
             ),
-            ignition_cell_y_fraction=float(
-                data.get("ignition_cell_y_fraction", defaults.ignition_cell_y_fraction)
+            fuel_field_type=str(data.get("fuel_field_type", defaults.fuel_field_type)),
+            ignition_points_xy_fraction=read_ignition_points_xy_fraction(
+                data, defaults.ignition_points_xy_fraction
             ),
             simulation_duration_s=float(
                 data.get("simulation_duration_s", defaults.simulation_duration_s)
@@ -67,9 +92,59 @@ class FireSimulationConfiguration:
         """
         return {
             "fuel_preset_name": self.fuel_preset_name,
-            "ignition_cell_x_fraction": self.ignition_cell_x_fraction,
-            "ignition_cell_y_fraction": self.ignition_cell_y_fraction,
+            "spread_engine_name": self.spread_engine_name,
+            "fuel_field_type": self.fuel_field_type,
+            "ignition_points_xy_fraction": [
+                list(point) for point in self.ignition_points_xy_fraction
+            ],
             "simulation_duration_s": self.simulation_duration_s,
             "time_step_safety_factor": self.time_step_safety_factor,
             "emission_model": self.emission_model,
         }
+
+
+def read_ignition_points_xy_fraction(
+    data: dict[str, Any],
+    default_points_xy_fraction: tuple[tuple[float, float], ...],
+) -> tuple[tuple[float, float], ...]:
+    """Read ignition points from either the list form or the scalar pair form.
+
+    Args:
+        data: Mapping of field name to value.
+        default_points_xy_fraction: Points to use when neither form is present.
+
+    Returns:
+        One or more `(x_fraction, y_fraction)` pairs.
+
+    Raises:
+        ValueError: If the list is empty, or an entry is not a pair.
+    """
+    if "ignition_points_xy_fraction" in data:
+        points = tuple(
+            (float(point[0]), float(point[1]))
+            for point in data["ignition_points_xy_fraction"]
+            if len(point) == 2
+        )
+        if len(points) != len(data["ignition_points_xy_fraction"]):
+            raise ValueError("every ignition point must be an [x, y] fraction pair")
+        if not points:
+            raise ValueError("at least one ignition point is required")
+        return points
+
+    if "ignition_cell_x_fraction" in data or "ignition_cell_y_fraction" in data:
+        return (
+            (
+                float(
+                    data.get(
+                        "ignition_cell_x_fraction", default_points_xy_fraction[0][0]
+                    )
+                ),
+                float(
+                    data.get(
+                        "ignition_cell_y_fraction", default_points_xy_fraction[0][1]
+                    )
+                ),
+            ),
+        )
+
+    return default_points_xy_fraction

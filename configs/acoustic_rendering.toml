@@ -3,3 +3,4 @@ sample_rate_hz = 44100
 segment_duration_s = 5.0
 reference_distance_m = 1.0
 source_signal_seed = 42
+observation_interval_s = 60.0

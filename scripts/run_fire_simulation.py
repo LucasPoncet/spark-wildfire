@@ -2,23 +2,27 @@
 
 Usage:
     uv run python scripts/run_fire_simulation.py
-    uv run python scripts/run_fire_simulation.py --engine rate-of-spread
-    uv run python scripts/run_fire_simulation.py --engine rate-of-spread --time-step-s 5
+    uv run python scripts/run_fire_simulation.py --configs configs/e3
+    uv run python scripts/run_fire_simulation.py --time-step-s 5
 
 A window opens showing the grid. Click anywhere on it to start a fire at
 that cell; the simulation keeps advancing on its own from the moment the
 window opens.
 
-Zero domain logic lives here: this script builds the day-one components (a
-flat square grid, a patchy random forest, constant wind), wires them into
-whichever engine was asked for, and drives the animation loop. Both engines
-are held as a `SpreadEngineProtocol`, so everything below `build_engine` is
-identical for either one — that is the protocol earning its keep. When
-`simulation_context_factory.py` lands, `build_engine` moves there and this
-file keeps only the animation.
+Zero domain logic lives here. The mesh, engine and wind come from
+`simulation_context_factory`, so `--configs` swaps the engine the same way it
+does for the rendering script. The patchy tree fuel is built here rather than
+by the factory because it is a display asset: it makes the front visibly
+wander, and no configuration section describes it yet.
+
+The mesh is narrowed back to a concrete `SquareGridMesh` before display,
+because a raster image needs the row and column structure `MeshProtocol`
+deliberately does not expose. Narrowing is not construction: the composition
+root is still the only place a mesh is built.
 """
 
 import argparse
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,33 +30,31 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.artist import Artist
 from matplotlib.backend_bases import MouseEvent
 
-from src.spark.fields.constant_wind_field import ConstantWindField
+from src.config.component_registry import RATE_OF_SPREAD_ENGINE
+from src.config.simulation_configuration import (
+    DEFAULT_CONFIGURATION_DIRECTORY,
+    ForwardSimulationConfiguration,
+    load_forward_simulation_configuration,
+)
+from src.config.simulation_context import SimulationContext
+from src.config.simulation_context_factory import build_simulation_context
 from src.spark.fields.patchy_density_field import PatchyDensityField
 from src.spark.fields.random_tree_placement_field import RandomTreePlacementField
+from src.spark.fields.scalar_field_protocol import ScalarFieldProtocol
 from src.spark.fire.cellular_automaton_spread_engine import (
     FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION,
-    CellularAutomatonSpreadEngine,
-    CellularAutomatonSpreadEngineConfig,
 )
-from src.spark.fire.fuel_properties import FuelProperties
-from src.spark.fire.rate_of_spread_engine import RateOfSpreadEngine
-from src.spark.fire.spread_engine_protocol import SpreadEngineProtocol
-from src.spark.terrain.square_grid_mesh import SquareGridMesh, SquareGridMeshConfig
+from src.spark.terrain.square_grid_mesh import SquareGridMesh
 from src.utils.visualization.fire_state_plotter import render_fire_state_rgb_image
 
-CELLULAR_AUTOMATON_ENGINE = "cellular-automaton"
-RATE_OF_SPREAD_ENGINE = "rate-of-spread"
-
-GRID_EXTENT_M = 100.0
-CELL_SPACING_M = 0.5
 ANIMATION_FRAME_INTERVAL_MS = 150
-WIND_SPEED_M_PER_S = 3.0
-WIND_BEARING_RAD = 0.0
 TREE_DENSITY_PER_M2 = 0.1
 TREE_FUEL_LOAD_KG_PER_M2 = 0.25
 TREE_INFLUENCE_RADIUS_M = 2.5
 TREE_LAYOUT_SEED = 100
 CELLULAR_AUTOMATON_BURN_DURATION_S = 10.0
+RATE_OF_SPREAD_DEFAULT_TIME_STEP_S = 10.0
+CELLULAR_AUTOMATON_DEFAULT_TIME_STEP_S = 1.0
 
 TREE_BACKGROUND_DENSITY_PER_M2 = 0.01
 TREE_PATCH_CENTERS_FRACTION_XY = np.array(
@@ -62,18 +64,13 @@ TREE_PATCH_RADIUS_FRACTION = 0.15
 
 
 def parse_arguments() -> argparse.Namespace:
-    """Read the engine choice and timestep from the command line.
+    """Read the configuration directory and timestep from the command line.
 
     Returns:
-        Parsed arguments carrying `engine` and `time_step_s`.
+        Parsed arguments carrying `configs` and `time_step_s`.
     """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
-        "--engine",
-        choices=[CELLULAR_AUTOMATON_ENGINE, RATE_OF_SPREAD_ENGINE],
-        default=CELLULAR_AUTOMATON_ENGINE,
-        help="Which spread engine to run. Default: %(default)s.",
-    )
+    parser.add_argument("--configs", type=Path, default=DEFAULT_CONFIGURATION_DIRECTORY)
     parser.add_argument(
         "--time-step-s",
         type=float,
@@ -85,72 +82,87 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_engine(engine_name: str) -> tuple[SpreadEngineProtocol, float, float]:
-    """Build the requested engine and the settings that depend on it.
+def build_tree_fuel_field(extent_x_m: float, extent_y_m: float) -> ScalarFieldProtocol:
+    """Build the patchy tree fuel the demo displays.
 
     Args:
-        engine_name: One of the two engine identifiers.
+        extent_x_m: Domain extent along x, in metres.
+        extent_y_m: Domain extent along y, in metres.
 
     Returns:
-        A tuple of the engine, how long one cell burns in seconds, and the
-        default timestep in seconds. The burn duration is only used to shade
-        burning cells by how far through their burn they are.
+        The fuel field, behind its protocol.
     """
-    if engine_name == RATE_OF_SPREAD_ENGINE:
-        fuel = FuelProperties.pine_needle_litter()
-        return RateOfSpreadEngine(fuel), fuel.residence_time_s, 10.0
-    return (
-        CellularAutomatonSpreadEngine(
-            CellularAutomatonSpreadEngineConfig(
-                burn_duration_s=CELLULAR_AUTOMATON_BURN_DURATION_S
-            )
-        ),
-        CELLULAR_AUTOMATON_BURN_DURATION_S,
-        1.0,
-    )
-
-
-def main() -> None:
-    """Build the simulation from the command line and show it in a window."""
-    arguments = parse_arguments()
-    engine, burn_duration_s, default_time_step_s = build_engine(arguments.engine)
-    time_step_s = (
-        default_time_step_s if arguments.time_step_s is None else arguments.time_step_s
-    )
-
-    mesh = SquareGridMesh(
-        SquareGridMeshConfig(
-            extent_x_m=GRID_EXTENT_M,
-            extent_y_m=GRID_EXTENT_M,
-            cell_spacing_m=CELL_SPACING_M,
-            use_diagonal_neighbors=True,
-        )
-    )
     density_field = PatchyDensityField(
-        patch_centers_xy=TREE_PATCH_CENTERS_FRACTION_XY * GRID_EXTENT_M,
+        patch_centers_xy=TREE_PATCH_CENTERS_FRACTION_XY
+        * np.array([extent_x_m, extent_y_m]),
         patch_peak_density_per_m2=TREE_DENSITY_PER_M2,
-        patch_radius_m=TREE_PATCH_RADIUS_FRACTION * GRID_EXTENT_M,
+        patch_radius_m=TREE_PATCH_RADIUS_FRACTION * extent_x_m,
         background_density_per_m2=TREE_BACKGROUND_DENSITY_PER_M2,
     )
-    fuel_field = RandomTreePlacementField(
-        extent_x_m=GRID_EXTENT_M,
-        extent_y_m=GRID_EXTENT_M,
+    field: ScalarFieldProtocol = RandomTreePlacementField(
+        extent_x_m=extent_x_m,
+        extent_y_m=extent_y_m,
         tree_density_per_m2=TREE_DENSITY_PER_M2,
         tree_fuel_load_kg_per_m2=TREE_FUEL_LOAD_KG_PER_M2,
         influence_radius_m=TREE_INFLUENCE_RADIUS_M,
         seed=TREE_LAYOUT_SEED,
         density_field=density_field,
     )
-    wind_field = ConstantWindField.from_speed_and_bearing(
-        WIND_SPEED_M_PER_S, WIND_BEARING_RAD
+    return field
+
+
+def resolve_display_settings(
+    config: ForwardSimulationConfiguration,
+    context: SimulationContext,
+    requested_time_step_s: float | None,
+) -> tuple[float, float]:
+    """Pick how long a cell burns and how far each frame advances.
+
+    Args:
+        config: Run configuration, naming the engine.
+        context: The built context, carrying the fuel bed.
+        requested_time_step_s: Timestep from the command line, or None.
+
+    Returns:
+        The burn duration used only for shading, and the frame timestep,
+        both in seconds.
+    """
+    if config.fire.spread_engine_name == RATE_OF_SPREAD_ENGINE:
+        burn_duration_s = context.fuel.residence_time_s
+        default_time_step_s = RATE_OF_SPREAD_DEFAULT_TIME_STEP_S
+    else:
+        burn_duration_s = CELLULAR_AUTOMATON_BURN_DURATION_S
+        default_time_step_s = CELLULAR_AUTOMATON_DEFAULT_TIME_STEP_S
+    return burn_duration_s, (
+        default_time_step_s if requested_time_step_s is None else requested_time_step_s
     )
+
+
+def main() -> None:
+    """Build the simulation from a configuration directory and show it."""
+    arguments = parse_arguments()
+    config = load_forward_simulation_configuration(arguments.configs)
+    context = build_simulation_context(config)
+    burn_duration_s, time_step_s = resolve_display_settings(
+        config, context, arguments.time_step_s
+    )
+
+    mesh = context.mesh
+    if not isinstance(mesh, SquareGridMesh):
+        raise TypeError(
+            "the live display renders a raster image and needs a square grid; "
+            f"{type(mesh).__name__} has no row and column structure"
+        )
+    engine = context.spread_engine
+    fuel_field = build_tree_fuel_field(config.mesh.extent_x_m, config.mesh.extent_y_m)
     fuel_density_fraction = np.clip(
         fuel_field.sample(mesh.cell_positions_xyz), 0.0, 1.0
     )
+    cells_per_row = round(config.mesh.extent_x_m / config.mesh.cell_spacing_m) + 1
 
-    simulation = {"state": engine.initialize(mesh, fuel_field, wind_field)}
+    simulation = {"state": engine.initialize(mesh, fuel_field, context.wind_field)}
     simulation["state"] = engine.ignite_cells(
-        simulation["state"], np.array([mesh.cell_count // 2], dtype=np.int64)
+        simulation["state"], context.ignition_cell_indices
     )
 
     figure, axes = plt.subplots()
@@ -163,21 +175,23 @@ def main() -> None:
             FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION,
         ),
         origin="lower",
-        extent=(0.0, GRID_EXTENT_M, 0.0, GRID_EXTENT_M),
+        extent=(0.0, config.mesh.extent_x_m, 0.0, config.mesh.extent_y_m),
     )
     axes.set_xlabel("x (m)")
     axes.set_ylabel("y (m)")
-    title_artist = axes.set_title(f"{arguments.engine} — t = 0.0 s — click to ignite")
+    title_artist = axes.set_title(
+        f"{config.fire.spread_engine_name} — t = 0.0 s — click to ignite"
+    )
 
     def ignite_cell_at_click(event: MouseEvent) -> None:
         if event.inaxes is not axes or event.xdata is None or event.ydata is None:
             return
-        column_index = round(event.xdata / CELL_SPACING_M)
-        row_index = round(event.ydata / CELL_SPACING_M)
-        if 0 <= column_index < mesh.n_x and 0 <= row_index < mesh.n_y:
+        column_index = round(event.xdata / config.mesh.cell_spacing_m)
+        row_index = round(event.ydata / config.mesh.cell_spacing_m)
+        cell_index = row_index * cells_per_row + column_index
+        if 0 <= cell_index < mesh.cell_count:
             simulation["state"] = engine.ignite_cells(
-                simulation["state"],
-                np.array([row_index * mesh.n_x + column_index], dtype=np.int64),
+                simulation["state"], np.array([cell_index], dtype=np.int64)
             )
 
     def advance_one_frame(_frame_number: int) -> tuple[Artist, ...]:
@@ -192,7 +206,7 @@ def main() -> None:
             )
         )
         title_artist.set_text(
-            f"{arguments.engine} — "
+            f"{config.fire.spread_engine_name} — "
             f"t = {simulation['state'].current_time_s:.1f} s — click to ignite"
         )
         return image_artist, title_artist

@@ -1,0 +1,22 @@
+{
+  "experiment_name": "e2",
+  "experiment_title": "E2 \u2014 two static sources, three receivers",
+  "configuration_directory": "configs\\e2",
+  "time_step_s": 18.0,
+  "observation_interval_s": 60.0,
+  "observation_count": 5,
+  "sample_rate_hz": 44100,
+  "receiver_count": 3,
+  "spread_engine_name": "static_source",
+  "emission_model": "all_burning",
+  "ignition_positions_xy_m": [
+    [
+      9.0,
+      27.0
+    ],
+    [
+      51.0,
+      51.0
+    ]
+  ]
+}

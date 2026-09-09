@@ -118,3 +118,64 @@ def plot_fire_state(
     axes.set_ylabel("y (m)")
     axes.set_title(f"t = {state.current_time_s:.1f} s")
     return figure
+
+
+def plot_ignition_time_map(
+    state: FireState,
+    mesh: SquareGridMesh,
+    front_masks: list[npt.NDArray[np.bool_]],
+    front_mask_times_s: list[float],
+) -> Figure:
+    """Ignition time as a heatmap, with the front overlaid at chosen instants.
+
+    The heatmap is the whole run at once: contours of equal ignition time are
+    the front's successive positions. The overlaid masks pick out a few of
+    them so the reader can tie the picture back to the observations.
+
+    Args:
+        state: The final FireState, carrying every ignition time.
+        mesh: The square grid the state lives on.
+        front_masks: Bool arrays of shape (cell_count,), one per instant drawn.
+        front_mask_times_s: Simulation time of each mask, in seconds.
+
+    Returns:
+        A matplotlib Figure. Callers save it; this function never does.
+
+    Raises:
+        ValueError: If the masks and their times do not have the same length.
+    """
+    if len(front_masks) != len(front_mask_times_s):
+        raise ValueError("every front mask needs exactly one time")
+
+    ignition_times_s = np.where(
+        np.isfinite(state.ignition_times_s), state.ignition_times_s, np.nan
+    ).reshape(mesh.n_y, mesh.n_x)
+
+    figure = Figure(figsize=(3.8, 3.2))
+    axes = figure.add_subplot(111)
+    image = axes.imshow(
+        ignition_times_s,
+        origin="lower",
+        extent=(0.0, mesh.config.extent_x_m, 0.0, mesh.config.extent_y_m),
+        cmap="magma",
+    )
+    figure.colorbar(image, ax=axes, label="ignition time (s)")
+
+    for front_mask, mask_time_s in zip(front_masks, front_mask_times_s, strict=True):
+        front_positions_xy_m = mesh.cell_positions_xyz[front_mask, :2]
+        if front_positions_xy_m.shape[0] == 0:
+            continue
+        axes.scatter(
+            front_positions_xy_m[:, 0],
+            front_positions_xy_m[:, 1],
+            s=4,
+            label=f"t = {mask_time_s:.0f} s",
+        )
+
+    axes.set_xlabel("x (m)")
+    axes.set_ylabel("y (m)")
+    axes.set_title("Front evolution")
+    if front_masks:
+        axes.legend(fontsize="xx-small", loc="upper right", framealpha=0.85)
+    figure.tight_layout()
+    return figure

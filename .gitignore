@@ -50,6 +50,16 @@ results/simulations/
 # Metrics are committed — they are the experiment record
 !results/metrics/
 
+# So is the record of what every run and every figure set was made from. The
+# heavy arrays stay out (see *.npy below); the sidecars that say which
+# configuration produced them are small and are the reproducibility record.
+!results/simulations/
+results/simulations/**/*.npy
+!results/figures/
+results/figures/**/*.svg
+results/figures/**/*.gif
+results/figures/**/*.png
+
 # =============================================================================
 # Jupyter
 # =============================================================================

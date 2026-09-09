@@ -1,0 +1,11 @@
+[recording]
+path = "data/raw_recordings/kaggle/videoplayback_01.wav"
+as_mono = true
+
+[segmentation]
+clip_duration_s = 5.0
+overlap_fraction = 0.0
+
+[output]
+metrics_directory = "results/metrics"
+metrics_filename = "single_source_localization.json"

@@ -1,11 +1,12 @@
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 
 from src.config.acoustic_rendering_configuration import AcousticRenderingConfiguration
+from src.config.experiment_configuration import ExperimentConfiguration
 from src.config.fire_simulation_configuration import FireSimulationConfiguration
 from src.config.mesh_configuration import MeshConfiguration
 from src.config.receiver_configuration import ReceiverConfiguration
@@ -24,6 +25,7 @@ WIND_FILENAME: str = "wind.toml"
 FIRE_FILENAME: str = "fire.toml"
 RECEIVER_FILENAME: str = "receiver.toml"
 ACOUSTIC_RENDERING_FILENAME: str = "acoustic_rendering.toml"
+EXPERIMENT_FILENAME: str = "experiment.toml"
 
 
 @dataclass(frozen=True)
@@ -497,6 +499,7 @@ class ForwardSimulationConfiguration:
     never be able to reach the fire model through its own configuration.
 
     Attributes:
+        experiment: What this scene is called, so its outputs are self-describing.
         mesh: Extent, resolution and connectivity of the grid.
         wind: Speed and direction of the constant wind field.
         fire: Fuel, ignition point, run length and emission model.
@@ -512,7 +515,43 @@ class ForwardSimulationConfiguration:
     receiver: ReceiverConfiguration
     acoustic: AcousticRenderingConfiguration
     atmosphere: AtmosphericConditions
+    experiment: ExperimentConfiguration = field(default_factory=ExperimentConfiguration)
     configuration_directory: Path = field(default=DEFAULT_CONFIGURATION_DIRECTORY)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Rebuild from the mapping `to_dict` produced.
+
+        A saved run is therefore self-describing: the figure exporter and the
+        application can replay the exact scene a run came from without being
+        told which configuration directory produced it.
+
+        Args:
+            data: Mapping of section name to that section's fields.
+
+        Returns:
+            The configuration, with the directory left at its default.
+        """
+        atmosphere = data.get("atmosphere", {})
+        return cls(
+            experiment=ExperimentConfiguration.from_dict(data.get("experiment", {})),
+            mesh=MeshConfiguration.from_dict(data.get("mesh", {})),
+            wind=WindConfiguration.from_dict(data.get("wind", {})),
+            fire=FireSimulationConfiguration.from_dict(data.get("fire", {})),
+            receiver=ReceiverConfiguration.from_dict(data.get("receiver", {})),
+            acoustic=AcousticRenderingConfiguration.from_dict(
+                data.get("acoustic_rendering", {})
+            ),
+            atmosphere=AtmosphericConditions(
+                air_temperature_celsius=float(
+                    atmosphere.get("air_temperature_celsius", 15.0)
+                ),
+                relative_humidity_percent=float(
+                    atmosphere.get("relative_humidity_percent", 70.0)
+                ),
+                pressure_kpa=float(atmosphere.get("pressure_kpa", 101.325)),
+            ),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Render every section as one JSON-serialisable mapping.
@@ -521,6 +560,7 @@ class ForwardSimulationConfiguration:
             Mapping of section name to that section's fields.
         """
         return {
+            "experiment": self.experiment.to_dict(),
             "mesh": self.mesh.to_dict(),
             "wind": self.wind.to_dict(),
             "fire": self.fire.to_dict(),
@@ -532,6 +572,23 @@ class ForwardSimulationConfiguration:
                 "pressure_kpa": self.atmosphere.pressure_kpa,
             },
         }
+
+
+def load_experiment_configuration(path: Path) -> ExperimentConfiguration:
+    """Loads the scene's identity from experiment.toml.
+
+    A directory without one is still a valid scene; it just falls back to the
+    default name, so an older configuration directory keeps working.
+
+    Args:
+        path: Path to the file.
+
+    Returns:
+        The experiment identity.
+    """
+    if not path.is_file():
+        return ExperimentConfiguration()
+    return ExperimentConfiguration.from_dict(read_toml_document(path)["experiment"])
 
 
 def load_forward_simulation_configuration(
@@ -546,6 +603,9 @@ def load_forward_simulation_configuration(
         The whole forward run configuration.
     """
     return ForwardSimulationConfiguration(
+        experiment=load_experiment_configuration(
+            configuration_directory / EXPERIMENT_FILENAME
+        ),
         mesh=MeshConfiguration.from_dict(
             read_toml_document(configuration_directory / MESH_FILENAME)["mesh"]
         ),

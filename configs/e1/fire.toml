@@ -1,0 +1,8 @@
+[fire]
+fuel_preset_name = "pine_needle_litter"
+spread_engine_name = "static_source"
+fuel_field_type = "uniform"
+ignition_points_xy_fraction = [[0.35, 0.35]]
+simulation_duration_s = 300.0
+time_step_safety_factor = 0.9
+emission_model = "all_burning"
