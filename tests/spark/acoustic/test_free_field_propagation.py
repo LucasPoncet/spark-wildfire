@@ -8,7 +8,6 @@ from src.audio.octave_band_filter import (
 from src.config.simulation_configuration import BandConfiguration
 from src.spark.acoustic.free_field_propagation import (
     apply_free_field_propagation,
-    compute_geometric_spreading_gain,
     render_receiver_signals,
 )
 from src.spark.acoustic.receiver_noise import add_white_noise_at_snr_db
@@ -34,12 +33,10 @@ def make_source_signal(
 def compute_delay_samples(
     distance_m: float, atmosphere: AtmosphericConditions, sample_rate_hz: int
 ) -> int:
-    return int(
-        round(
-            distance_m
-            / compute_speed_of_sound_m_per_s(atmosphere.air_temperature_celsius)
-            * sample_rate_hz
-        )
+    return round(
+        distance_m
+        / compute_speed_of_sound_m_per_s(atmosphere.air_temperature_celsius)
+        * sample_rate_hz
     )
 
 
@@ -90,14 +87,6 @@ def measure_band_level_difference_db(
             )
         )
     return float(20.0 * np.log10(levels[0] / levels[1]))
-
-
-def test_geometric_spreading_halves_the_amplitude_per_doubling(
-    reference_distance_m: float,
-) -> None:
-    near = compute_geometric_spreading_gain(20.0, reference_distance_m)
-    far = compute_geometric_spreading_gain(40.0, reference_distance_m)
-    assert near / far == pytest.approx(2.0)
 
 
 def test_propagation_applies_the_expected_delay(

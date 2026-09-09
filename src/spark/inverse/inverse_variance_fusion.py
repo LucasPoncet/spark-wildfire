@@ -7,6 +7,16 @@ from src.utils.array_types import Float64Array
 
 @dataclass(frozen=True)
 class FusedEstimate:
+    """One estimate fused from several independent measurements of the same quantity.
+
+    Attributes:
+        value: The inverse-variance weighted mean.
+        variance: Variance of that mean.
+        reduced_chi_square: Goodness of fit; about 1 when the inputs agree within
+            their stated uncertainties, much larger when the model is wrong.
+        residuals: Each input value minus the fused value.
+    """
+
     value: float
     variance: float
     reduced_chi_square: float
@@ -16,6 +26,19 @@ class FusedEstimate:
 def fuse_inverse_variance(
     values: Float64Array, variances: Float64Array
 ) -> FusedEstimate:
+    """Fuses independent estimates of one quantity, weighting by inverse variance.
+
+    Args:
+        values: Estimates of the same quantity.
+        variances: Variance of each estimate, strictly positive.
+
+    Returns:
+        The fused estimate, its variance, the reduced chi-square and the residuals.
+
+    Raises:
+        ValueError: If the lengths differ, fewer than two estimates are given, or any
+            variance is not strictly positive.
+    """
     sample_values = np.asarray(values, dtype=np.float64)
     sample_variances = np.asarray(variances, dtype=np.float64)
     if sample_values.size != sample_variances.size:

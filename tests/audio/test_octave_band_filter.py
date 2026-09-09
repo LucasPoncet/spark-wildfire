@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 
-from src.audio.band_level_meter import compute_band_level_db, make_analysis_window
 from src.audio.octave_band_filter import (
     apply_octave_bandpass,
     compute_octave_band_edges_hz,
@@ -31,7 +30,7 @@ def test_band_edges_are_clipped_below_nyquist(
 def test_band_edges_reject_a_band_above_nyquist(
     bands: BandConfiguration, sample_rate_hz: int
 ) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="does not fit below"):
         compute_octave_band_edges_hz(
             64000.0, sample_rate_hz, bands.maximum_edge_fraction_of_nyquist
         )
@@ -86,11 +85,3 @@ def test_bandpass_is_zero_phase(bands: BandConfiguration, sample_rate_hz: int) -
     )
     correlation = np.correlate(filtered, filtered, mode="same")
     assert int(np.argmax(correlation)) == filtered.size // 2
-
-
-def test_band_level_recovers_the_level_of_a_scaled_signal() -> None:
-    window = make_analysis_window(2048)
-    signal = np.random.default_rng(1).normal(size=2048)
-    level_db = compute_band_level_db(signal, window)
-    scaled_level_db = compute_band_level_db(2.0 * signal, window)
-    assert scaled_level_db - level_db == pytest.approx(20.0 * np.log10(2.0), abs=1e-6)

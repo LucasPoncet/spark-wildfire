@@ -65,12 +65,10 @@ def test_source_positions_lie_inside_the_domain(
 ) -> None:
     geometry = simulation_configuration.geometry
     sources = geometry.true_source_positions_xy_m
-    assert np.all(sources[:, 0] >= 0.0) and np.all(
-        sources[:, 0] <= geometry.domain.size_x_m
-    )
-    assert np.all(sources[:, 1] >= 0.0) and np.all(
-        sources[:, 1] <= geometry.domain.size_y_m
-    )
+    assert np.all(sources[:, 0] >= 0.0)
+    assert np.all(sources[:, 0] <= geometry.domain.size_x_m)
+    assert np.all(sources[:, 1] >= 0.0)
+    assert np.all(sources[:, 1] <= geometry.domain.size_y_m)
 
 
 def test_band_centres_are_ascending_octaves(
@@ -120,7 +118,7 @@ def test_disabled_noise_reports_no_signal_to_noise_ratio(
 
 
 def test_position_array_rejects_malformed_input() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="list of"):
         to_position_array([[1.0, 2.0, 3.0]])
 
 
@@ -132,7 +130,7 @@ def test_geometry_requires_exactly_two_receivers(tmp_path: Path) -> None:
         "[sources]\ntrue_positions_xy_m = [[50.0, 50.0]]\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="exactly two receivers"):
         load_geometry_configuration(path)
 
 

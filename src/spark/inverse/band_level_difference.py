@@ -18,6 +18,18 @@ from src.utils.array_types import Float64Array
 
 @dataclass(frozen=True)
 class BandLevelDifferences:
+    """Per-band geometric level difference and its spread across analysis windows.
+
+    Attributes:
+        band_center_frequencies_hz: ISO band centres, shape `(n_bands,)`.
+        geometric_level_difference_db: Mean of the per-window estimates, per band.
+        window_variance_db2: Variance across windows, per band.
+        mean_variance_db2: Variance of the mean, that is `window_variance_db2`
+            divided by the effective window count.
+        window_count: Number of analysis windows used.
+        effective_window_count: Number of windows counted as independent.
+    """
+
     band_center_frequencies_hz: Float64Array
     geometric_level_difference_db: Float64Array
     window_variance_db2: Float64Array
@@ -29,6 +41,18 @@ class BandLevelDifferences:
 def compute_effective_window_count(
     window_count: int, window_configuration: WindowConfiguration
 ) -> float:
+    """Counts how many of the analysis windows are effectively independent.
+
+    Overlapping windows share samples, so they do not each contribute a full degree
+    of freedom to the variance of the mean.
+
+    Args:
+        window_count: Number of windows actually taken.
+        window_configuration: Overlap fraction and the independence factor.
+
+    Returns:
+        Effective count, equal to `window_count` when the windows do not overlap.
+    """
     if window_configuration.overlap_fraction <= 0.0:
         return float(window_count)
     return window_configuration.independent_window_fraction * window_count
@@ -44,6 +68,29 @@ def compute_band_level_differences(
     band_configuration: BandConfiguration,
     window_configuration: WindowConfiguration,
 ) -> BandLevelDifferences:
+    """Computes the geometric level difference per band, per analysis window.
+
+    Each window and band yields one estimate of the same geometric term, by
+    subtracting the atmospheric absorption already accounted for by the path
+    difference from the measured level difference.
+
+    Args:
+        signal_1: First receiver channel.
+        signal_2: Second receiver channel.
+        sample_rate_hz: Sample rate in hertz.
+        absorption_coefficients_db_per_m: One coefficient per band, in dB per metre.
+        path_difference_m: Path difference from the delay estimate, in metres.
+        alignment_shift_samples: Shift that puts channel 2 on channel 1's clock.
+        band_configuration: Band centres, filter order and Nyquist guard.
+        window_configuration: Window duration, overlap, floors and independence.
+
+    Returns:
+        Per-band means and variances over the analysis windows.
+
+    Raises:
+        ValueError: If the coefficient count does not match the band count, or fewer
+            than two windows fit in the overlapping region.
+    """
     first = np.asarray(signal_1, dtype=np.float64)
     second = np.asarray(signal_2, dtype=np.float64)
     centers_hz = np.asarray(band_configuration.center_frequencies_hz, dtype=np.float64)
@@ -51,9 +98,9 @@ def compute_band_level_differences(
     if absorption.size != centers_hz.size:
         raise ValueError("one absorption coefficient is required per octave band")
 
-    window_sample_count = int(round(window_configuration.duration_s * sample_rate_hz))
+    window_sample_count = round(window_configuration.duration_s * sample_rate_hz)
     hop_sample_count = max(
-        int(round(window_sample_count * (1.0 - window_configuration.overlap_fraction))),
+        round(window_sample_count * (1.0 - window_configuration.overlap_fraction)),
         1,
     )
     window = make_analysis_window(window_sample_count)

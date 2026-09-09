@@ -21,6 +21,19 @@ def compute_absorption_coefficients_db_per_m(
     frequencies_hz: Float64Array | float,
     conditions: AtmosphericConditions,
 ) -> Float64Array:
+    """Computes the ISO 9613-1 atmospheric absorption coefficient per frequency.
+
+    Recomputed per scenario rather than read from a table: the coefficient moves by
+    roughly 30 percent across realistic temperature and humidity conditions, and the
+    high bands where it matters most are the ones that move furthest.
+
+    Args:
+        frequencies_hz: Frequencies in hertz, scalar or array.
+        conditions: Air temperature, relative humidity and pressure.
+
+    Returns:
+        Absorption in decibels per metre, same shape as `frequencies_hz`.
+    """
     frequency = np.asarray(frequencies_hz, dtype=np.float64)
     temperature_k = conditions.air_temperature_celsius + KELVIN_AT_ZERO_CELSIUS
     temperature_ratio = temperature_k / REFERENCE_TEMPERATURE_K
@@ -73,8 +86,9 @@ def compute_absorption_coefficients_db_per_m(
         )
     )
 
-    return (
+    absorption_db_per_m = (
         NEPER_TO_DECIBEL
         * frequency**2
         * (classical_term + temperature_ratio**-2.5 * (oxygen_term + nitrogen_term))
     )
+    return np.asarray(absorption_db_per_m, dtype=np.float64)

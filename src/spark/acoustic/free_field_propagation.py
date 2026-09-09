@@ -1,32 +1,14 @@
 import numpy as np
 
-from src.spark.atmosphere.atmospheric_absorption import (
-    compute_absorption_coefficients_db_per_m,
+from src.spark.acoustic.exponential_attenuation_channel import (
+    compute_atmospheric_absorption_gain,
+    compute_geometric_spreading_gain,
 )
 from src.spark.atmosphere.atmospheric_conditions import (
     AtmosphericConditions,
     compute_speed_of_sound_m_per_s,
 )
 from src.utils.array_types import Float64Array
-
-
-def compute_geometric_spreading_gain(
-    source_receiver_distance_m: float,
-    reference_distance_m: float,
-) -> float:
-    return reference_distance_m / max(source_receiver_distance_m, reference_distance_m)
-
-
-def compute_atmospheric_absorption_gain(
-    frequencies_hz: Float64Array,
-    source_receiver_distance_m: float,
-    conditions: AtmosphericConditions,
-) -> Float64Array:
-    absorption_db = (
-        compute_absorption_coefficients_db_per_m(frequencies_hz, conditions)
-        * source_receiver_distance_m
-    )
-    return np.asarray(10.0 ** (-absorption_db / 20.0), dtype=np.float64)
 
 
 def apply_free_field_propagation(
@@ -36,6 +18,22 @@ def apply_free_field_propagation(
     conditions: AtmosphericConditions,
     reference_distance_m: float,
 ) -> Float64Array:
+    """Propagates one waveform over one free-field path.
+
+    Applies propagation delay, `1/r` spreading and frequency-dependent ISO 9613-1
+    absorption in a single real FFT. The signal is zero-padded by the delay first,
+    so the tail never wraps into the head.
+
+    Args:
+        source_signal: Emitted waveform.
+        sample_rate_hz: Sample rate in hertz.
+        source_receiver_distance_m: Path length in metres.
+        conditions: Air temperature, relative humidity and pressure.
+        reference_distance_m: Distance at which spreading gain is unity, in metres.
+
+    Returns:
+        The received waveform, longer than the input by the delay.
+    """
     signal = np.asarray(source_signal, dtype=np.float64)
     speed_of_sound_m_per_s = compute_speed_of_sound_m_per_s(
         conditions.air_temperature_celsius
@@ -68,6 +66,20 @@ def render_receiver_signals(
     conditions: AtmosphericConditions,
     reference_distance_m: float,
 ) -> Float64Array:
+    """Renders one waveform per receiver, all on a common clock.
+
+    Args:
+        source_signal: Emitted waveform.
+        sample_rate_hz: Sample rate in hertz.
+        source_position_xy_m: Source position `(x, y)` in metres.
+        receiver_positions_xy_m: Receiver positions, shape `(n_receivers, 2)`.
+        conditions: Air temperature, relative humidity and pressure.
+        reference_distance_m: Distance at which spreading gain is unity, in metres.
+
+    Returns:
+        Received waveforms of shape `(n_receivers, n_samples)`, zero-padded to the
+        length of the farthest receiver so that every channel shares one time origin.
+    """
     source_position = np.asarray(source_position_xy_m, dtype=np.float64)
     receiver_positions = np.atleast_2d(
         np.asarray(receiver_positions_xy_m, dtype=np.float64)

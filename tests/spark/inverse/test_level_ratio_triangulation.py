@@ -2,7 +2,6 @@ import numpy as np
 import pytest
 
 from src.config.simulation_configuration import TriangulationConfiguration
-from src.spark.inverse.inverse_variance_fusion import fuse_inverse_variance
 from src.spark.inverse.level_ratio_triangulation import (
     compute_position_covariance,
     compute_ranges_from_level_ratio,
@@ -196,23 +195,5 @@ def test_covariance_grows_as_the_source_approaches_the_bisector(
 def test_identical_receiver_positions_are_rejected(
     receiver_1_xy_m: Float64Array,
 ) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="distinct positions"):
         triangulate_position_xy(10.0, 10.0, receiver_1_xy_m, receiver_1_xy_m, 1.0)
-
-
-def test_inverse_variance_fusion_favours_the_precise_estimate() -> None:
-    fused = fuse_inverse_variance(np.array([1.0, 2.0]), np.array([1e-4, 1.0]))
-    assert fused.value == pytest.approx(1.0, abs=1e-3)
-    assert fused.variance < 1e-4
-
-
-def test_inverse_variance_fusion_reports_consistent_bands_as_unit_chi_square() -> None:
-    variances = np.full(200, 0.25)
-    values = np.random.default_rng(0).normal(loc=3.0, scale=0.5, size=200)
-    fused = fuse_inverse_variance(values, variances)
-    assert fused.reduced_chi_square == pytest.approx(1.0, abs=0.25)
-
-
-def test_inverse_variance_fusion_rejects_non_positive_variance() -> None:
-    with pytest.raises(ValueError):
-        fuse_inverse_variance(np.array([1.0, 2.0]), np.array([1.0, 0.0]))

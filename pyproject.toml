@@ -63,6 +63,7 @@ convention = "google"
 "tests/**" = ["D"]
 "scripts/**" = ["E402"]
 "src/spark/fire/rate_of_spread_equations.py" = ["RUF001", "RUF002", "RUF003"]
+"src/utils/io/metrics_writer.py" = ["ANN401"]
 
 [tool.mypy]
 python_version = "3.13"

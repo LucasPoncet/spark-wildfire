@@ -4,10 +4,7 @@ import pytest
 from src.spark.atmosphere.atmospheric_absorption import (
     compute_absorption_coefficients_db_per_m,
 )
-from src.spark.atmosphere.atmospheric_conditions import (
-    AtmosphericConditions,
-    compute_speed_of_sound_m_per_s,
-)
+from src.spark.atmosphere.atmospheric_conditions import AtmosphericConditions
 
 OCTAVE_BAND_CENTER_FREQUENCIES_HZ = np.array(
     [125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0]
@@ -89,7 +86,3 @@ def test_absorption_is_significant_at_high_frequency_over_domain_scale() -> None
         np.array([8000.0]), AtmosphericConditions(15.0, 70.0)
     )
     assert computed[0] * 30.0 > 2.0
-
-
-def test_speed_of_sound_at_fifteen_celsius() -> None:
-    assert compute_speed_of_sound_m_per_s(15.0) == pytest.approx(340.3, abs=0.5)

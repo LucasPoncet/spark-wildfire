@@ -13,6 +13,15 @@ SPECTRUM_FLOOR: float = 1e-12
 
 @dataclass(frozen=True)
 class TimeDifferenceOfArrival:
+    """Delay between two receivers, with the precision of that delay.
+
+    Attributes:
+        delay_s: Delay in seconds. Positive means receiver 1 hears the event later.
+        variance_s2: Variance of the delay estimate, in seconds squared.
+        effective_bandwidth_hz: Cross-spectrum weighted root-mean-square frequency.
+        magnitude_squared_coherence: Mean coherence between the aligned channels.
+    """
+
     delay_s: float
     variance_s2: float
     effective_bandwidth_hz: float
@@ -26,6 +35,22 @@ def compute_generalised_cross_correlation_phat(
     maximum_delay_s: float | None,
     interpolation_factor: int,
 ) -> float:
+    """Estimates the delay between two channels by GCC-PHAT.
+
+    Phase transform weighting whitens the cross-spectrum, which sharpens the
+    correlation peak for a broadband source. The peak is refined to sub-sample
+    resolution by fitting a parabola to its three highest points.
+
+    Args:
+        signal_1: First channel.
+        signal_2: Second channel.
+        sample_rate_hz: Sample rate in hertz.
+        maximum_delay_s: Largest physically possible delay, or None to search all lags.
+        interpolation_factor: Spectral zero-padding factor for sub-sample resolution.
+
+    Returns:
+        Delay in seconds. Positive means receiver 1 hears the event later.
+    """
     first = np.asarray(signal_1, dtype=np.float64)
     second = np.asarray(signal_2, dtype=np.float64)
     transform_length = first.size + second.size
@@ -65,6 +90,21 @@ def compute_effective_bandwidth_and_coherence(
     sample_rate_hz: int,
     configuration: DelayEstimationConfiguration,
 ) -> tuple[float, float]:
+    """Measures effective bandwidth and coherence over the analysis band.
+
+    Both channels must already be aligned. Measured on an unaligned pair, a baseline
+    delay comparable to the Welch segment collapses the coherence and the delay
+    variance derived from it becomes meaningless.
+
+    Args:
+        signal_1: First channel, already aligned.
+        signal_2: Second channel, already aligned.
+        sample_rate_hz: Sample rate in hertz.
+        configuration: Segment length and analysis band limits.
+
+    Returns:
+        `(effective_bandwidth_hz, magnitude_squared_coherence)`.
+    """
     first = np.asarray(signal_1, dtype=np.float64)
     second = np.asarray(signal_2, dtype=np.float64)
     segment_length = min(
@@ -107,6 +147,19 @@ def compute_delay_variance_s2(
     observation_duration_s: float,
     interpolation_factor: int,
 ) -> float:
+    """Computes the delay variance from bandwidth, coherence and observation time.
+
+    Args:
+        effective_bandwidth_hz: Root-mean-square frequency of the cross-spectrum.
+        magnitude_squared_coherence: Mean coherence, standing in for the ratio of
+            signal power to noise power.
+        sample_rate_hz: Sample rate in hertz.
+        observation_duration_s: Length of the aligned overlap, in seconds.
+        interpolation_factor: Sub-sample resolution factor, setting the floor.
+
+    Returns:
+        Variance in seconds squared, floored at the sub-sample resolution.
+    """
     signal_to_noise_ratio = magnitude_squared_coherence / max(
         1.0 - magnitude_squared_coherence, 1.0 - MAXIMUM_COHERENCE
     )
@@ -128,6 +181,18 @@ def estimate_time_difference_of_arrival(
     maximum_delay_s: float | None,
     configuration: DelayEstimationConfiguration,
 ) -> TimeDifferenceOfArrival:
+    """Estimates the delay between two receivers and how precise that delay is.
+
+    Args:
+        signal_1: First channel.
+        signal_2: Second channel.
+        sample_rate_hz: Sample rate in hertz.
+        maximum_delay_s: Largest physically possible delay, or None to search all lags.
+        configuration: Interpolation factor, segment length and analysis band.
+
+    Returns:
+        The delay with its variance, effective bandwidth and coherence.
+    """
     delay_s = compute_generalised_cross_correlation_phat(
         signal_1,
         signal_2,
@@ -136,7 +201,7 @@ def estimate_time_difference_of_arrival(
         configuration.interpolation_factor,
     )
     aligned_1, aligned_2 = align_channel_pair(
-        signal_1, signal_2, int(round(delay_s * sample_rate_hz))
+        signal_1, signal_2, round(delay_s * sample_rate_hz)
     )
     effective_bandwidth_hz, coherence = compute_effective_bandwidth_and_coherence(
         aligned_1, aligned_2, sample_rate_hz, configuration

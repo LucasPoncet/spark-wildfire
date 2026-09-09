@@ -31,10 +31,10 @@ def test_configured_segmentation_covers_the_recording(
 
 
 def test_recording_shorter_than_one_segment_is_rejected(sample_rate_hz: int) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="shorter than one segment"):
         segment_recording(np.zeros(sample_rate_hz), sample_rate_hz, 5.0, 0.0)
 
 
 def test_invalid_overlap_is_rejected(sample_rate_hz: int) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="overlap_fraction must lie"):
         segment_recording(np.zeros(50 * sample_rate_hz), sample_rate_hz, 5.0, 1.0)
