@@ -3,7 +3,9 @@ import pytest
 
 from src.spark.acoustic.burning_cell_source_model import (
     extract_burning_cell_sources,
+    extract_fire_front_sources,
     generate_source_signal_for_burning_cell,
+    identify_connected_front_components,
 )
 from src.spark.fire.fire_state import FireState
 
@@ -104,3 +106,128 @@ def test_generated_signal_is_reproducible_per_seed() -> None:
 def test_empty_signal_request_is_rejected() -> None:
     with pytest.raises(ValueError, match="at least one sample"):
         generate_source_signal_for_burning_cell(1.0, 0.0, 44100)
+
+
+GRID_SIDE = 5
+LARGE_GRID_SIDE = 10
+CARDINAL_OFFSETS_RC = ((0, 1), (0, -1), (1, 0), (-1, 0))
+
+
+def build_square_neighbor_indices(side: int) -> np.ndarray:
+    cell_count = side * side
+    neighbor_indices = np.full(
+        (cell_count, len(CARDINAL_OFFSETS_RC)), -1, dtype=np.int64
+    )
+    for cell_index in range(cell_count):
+        row, column = divmod(cell_index, side)
+        for slot, (row_offset, column_offset) in enumerate(CARDINAL_OFFSETS_RC):
+            neighbor_row = row + row_offset
+            neighbor_column = column + column_offset
+            if 0 <= neighbor_row < side and 0 <= neighbor_column < side:
+                neighbor_indices[cell_index, slot] = (
+                    neighbor_row * side + neighbor_column
+                )
+    return neighbor_indices
+
+
+def build_square_positions_xyz(side: int) -> np.ndarray:
+    cell_indices = np.arange(side * side)
+    return np.stack(
+        (
+            (cell_indices % side).astype(np.float64),
+            (cell_indices // side).astype(np.float64),
+            np.zeros(side * side, dtype=np.float64),
+        ),
+        axis=1,
+    )
+
+
+def build_square_fire_state(
+    side: int, burning_rows_columns: tuple[tuple[int, int], ...]
+) -> FireState:
+    cell_count = side * side
+    is_burning = np.zeros(cell_count, dtype=np.bool_)
+    for row, column in burning_rows_columns:
+        is_burning[row * side + column] = True
+    return FireState(
+        ignition_times_s=np.full(cell_count, np.inf),
+        burnout_times_s=np.full(cell_count, np.inf),
+        is_burning=is_burning,
+        has_ignited=is_burning.copy(),
+        current_time_s=0.0,
+    )
+
+
+def mask_from_rows_columns(
+    side: int, rows_columns: tuple[tuple[int, int], ...]
+) -> np.ndarray:
+    mask = np.zeros(side * side, dtype=np.bool_)
+    for row, column in rows_columns:
+        mask[row * side + column] = True
+    return mask
+
+
+def test_front_extraction_excludes_interior_cells() -> None:
+    block = tuple((row, column) for row in range(1, 4) for column in range(1, 4))
+    sources = extract_fire_front_sources(
+        build_square_fire_state(GRID_SIDE, block),
+        build_square_positions_xyz(GRID_SIDE),
+        build_square_neighbor_indices(GRID_SIDE),
+        FUEL_LOAD_KG_PER_M2,
+        RESIDENCE_TIME_S,
+    )
+    interior_cell_index = 2 * GRID_SIDE + 2
+    assert sources.burning_cell_indices.size == 8
+    assert interior_cell_index not in sources.burning_cell_indices.tolist()
+    assert sources.source_positions_xy_m.shape == (8, 2)
+
+
+def test_connected_components_finds_two_separate_fires() -> None:
+    front_cells = ((1, 1), (1, 2), (2, 1), (7, 7), (7, 8), (8, 7))
+    is_on_front = mask_from_rows_columns(LARGE_GRID_SIDE, front_cells)
+    labels = identify_connected_front_components(
+        is_on_front, build_square_neighbor_indices(LARGE_GRID_SIDE)
+    )
+    assert sorted(set(labels[is_on_front].tolist())) == [0, 1]
+    assert np.bincount(labels[is_on_front]).tolist() == [3, 3]
+    assert np.all(labels[~is_on_front] == -1)
+
+
+def test_connected_components_single_fire_returns_one_component() -> None:
+    l_shaped_front = ((3, 3), (4, 3), (5, 3), (5, 4), (5, 5))
+    is_on_front = mask_from_rows_columns(LARGE_GRID_SIDE, l_shaped_front)
+    labels = identify_connected_front_components(
+        is_on_front, build_square_neighbor_indices(LARGE_GRID_SIDE)
+    )
+    assert sorted(set(labels[is_on_front].tolist())) == [0]
+    assert np.count_nonzero(labels == 0) == 5
+
+
+def test_connected_components_orders_the_largest_first() -> None:
+    front_cells = ((0, 0), (5, 5), (5, 6), (6, 5), (6, 6))
+    is_on_front = mask_from_rows_columns(LARGE_GRID_SIDE, front_cells)
+    labels = identify_connected_front_components(
+        is_on_front, build_square_neighbor_indices(LARGE_GRID_SIDE)
+    )
+    assert np.count_nonzero(labels == 0) == 4
+    assert np.count_nonzero(labels == 1) == 1
+
+
+def test_front_extraction_drops_a_fully_enclosed_burning_cell() -> None:
+    block = tuple((row, column) for row in range(1, 4) for column in range(1, 4))
+    state = build_square_fire_state(GRID_SIDE, block)
+    interior_only = FireState(
+        ignition_times_s=state.ignition_times_s,
+        burnout_times_s=state.burnout_times_s,
+        is_burning=mask_from_rows_columns(GRID_SIDE, ((2, 2),)),
+        has_ignited=state.has_ignited,
+        current_time_s=0.0,
+    )
+    sources = extract_fire_front_sources(
+        interior_only,
+        build_square_positions_xyz(GRID_SIDE),
+        build_square_neighbor_indices(GRID_SIDE),
+        FUEL_LOAD_KG_PER_M2,
+        RESIDENCE_TIME_S,
+    )
+    assert sources.burning_cell_indices.size == 0

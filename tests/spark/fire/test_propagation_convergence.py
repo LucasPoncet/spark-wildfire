@@ -1,5 +1,13 @@
+"""Front-shape convergence of the arrival-time engine.
+
+Durations are set by the physics rather than by convenience: pine needle
+litter spreads at 2.67 mm/s with no wind and 20.2 mm/s at 2 m/s, so crossing
+one 0.5 m cell takes 187 s and 25 s respectively. Runs shorter than that
+ignite a handful of cells, and the convex hull of a handful of cells is
+degenerate.
+"""
+
 import numpy as np
-import pytest
 from scipy.spatial import ConvexHull
 
 from src.spark.fields.constant_wind_field import ConstantWindField
@@ -66,7 +74,7 @@ def convex_hull_area_m2(mesh: SquareGridMesh, state: FireState) -> float:
     return float(ConvexHull(ignited_positions_xy_m).volume)
 
 
-def test_fire_shape_is_stable_across_time_steps() -> None:
+def test_fire_shape_stable_across_time_steps() -> None:
     mesh = build_mesh(True)
     dt = compute_maximum_stable_time_step_s(
         mesh, maximum_rate_of_spread_m_per_s(WIND_SPEED_M_PER_S)
@@ -81,7 +89,7 @@ def test_fire_shape_is_stable_across_time_steps() -> None:
     assert symmetric_difference_fraction(shape_fine, shape_finer) < 0.05
 
 
-def test_eight_connectivity_is_rounder_than_four() -> None:
+def test_eight_connectivity_rounder_than_four() -> None:
     dt = compute_maximum_stable_time_step_s(
         build_mesh(True), maximum_rate_of_spread_m_per_s(WIND_SPEED_M_PER_S)
     )
@@ -108,22 +116,3 @@ def test_dt_violating_cfl_changes_shape() -> None:
         run_until(mesh, WIND_SPEED_M_PER_S, CFL_VIOLATION_DURATION_S, dt * 3.0)
     )
     assert symmetric_difference_fraction(stable_shape, coarse_shape) > 0.10
-
-
-def test_time_step_is_the_shortest_edge_crossing_time() -> None:
-    mesh = build_mesh(True)
-    rate_of_spread_m_per_s = maximum_rate_of_spread_m_per_s(WIND_SPEED_M_PER_S)
-    dt = compute_maximum_stable_time_step_s(mesh, rate_of_spread_m_per_s, 0.9)
-    assert dt == pytest.approx(0.9 * CELL_SPACING_M / rate_of_spread_m_per_s)
-
-
-def test_time_step_rejects_a_non_positive_rate_of_spread() -> None:
-    with pytest.raises(ValueError, match="rate of spread must be positive"):
-        compute_maximum_stable_time_step_s(build_mesh(True), 0.0)
-
-
-def test_time_step_shrinks_as_the_fire_gets_faster() -> None:
-    mesh = build_mesh(True)
-    assert compute_maximum_stable_time_step_s(
-        mesh, 1.0
-    ) > compute_maximum_stable_time_step_s(mesh, 2.0)

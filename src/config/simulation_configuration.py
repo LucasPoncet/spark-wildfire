@@ -5,6 +5,11 @@ from typing import Any
 
 import numpy as np
 
+from src.config.acoustic_rendering_configuration import AcousticRenderingConfiguration
+from src.config.fire_simulation_configuration import FireSimulationConfiguration
+from src.config.mesh_configuration import MeshConfiguration
+from src.config.receiver_configuration import ReceiverConfiguration
+from src.config.wind_configuration import WindConfiguration
 from src.spark.atmosphere.atmospheric_conditions import AtmosphericConditions
 from src.utils.array_types import Float64Array
 
@@ -14,6 +19,11 @@ DATA_FILENAME: str = "data.toml"
 GEOMETRY_FILENAME: str = "geometry.toml"
 FORWARD_MODEL_FILENAME: str = "forward_model.toml"
 LOCALIZATION_FILENAME: str = "localization.toml"
+MESH_FILENAME: str = "mesh.toml"
+WIND_FILENAME: str = "wind.toml"
+FIRE_FILENAME: str = "fire.toml"
+RECEIVER_FILENAME: str = "receiver.toml"
+ACOUSTIC_RENDERING_FILENAME: str = "acoustic_rendering.toml"
 
 
 @dataclass(frozen=True)
@@ -473,6 +483,88 @@ def load_simulation_configuration(
         ),
         localization=load_localization_configuration(
             configuration_directory / LOCALIZATION_FILENAME
+        ),
+        configuration_directory=configuration_directory,
+    )
+
+
+@dataclass(frozen=True)
+class ForwardSimulationConfiguration:
+    """One whole forward render, loaded from a configuration directory.
+
+    Sits alongside `SimulationConfiguration` rather than inside it: the two
+    pipelines share only the air conditions, and the inverse estimator must
+    never be able to reach the fire model through its own configuration.
+
+    Attributes:
+        mesh: Extent, resolution and connectivity of the grid.
+        wind: Speed and direction of the constant wind field.
+        fire: Fuel, ignition point, run length and emission model.
+        receiver: Receiver layout strategy and its parameters.
+        acoustic: Sampling and signal parameters of the render.
+        atmosphere: Air temperature, relative humidity and pressure.
+        configuration_directory: Directory the settings were read from.
+    """
+
+    mesh: MeshConfiguration
+    wind: WindConfiguration
+    fire: FireSimulationConfiguration
+    receiver: ReceiverConfiguration
+    acoustic: AcousticRenderingConfiguration
+    atmosphere: AtmosphericConditions
+    configuration_directory: Path = field(default=DEFAULT_CONFIGURATION_DIRECTORY)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Render every section as one JSON-serialisable mapping.
+
+        Returns:
+            Mapping of section name to that section's fields.
+        """
+        return {
+            "mesh": self.mesh.to_dict(),
+            "wind": self.wind.to_dict(),
+            "fire": self.fire.to_dict(),
+            "receiver": self.receiver.to_dict(),
+            "acoustic_rendering": self.acoustic.to_dict(),
+            "atmosphere": {
+                "air_temperature_celsius": self.atmosphere.air_temperature_celsius,
+                "relative_humidity_percent": self.atmosphere.relative_humidity_percent,
+                "pressure_kpa": self.atmosphere.pressure_kpa,
+            },
+        }
+
+
+def load_forward_simulation_configuration(
+    configuration_directory: Path = DEFAULT_CONFIGURATION_DIRECTORY,
+) -> ForwardSimulationConfiguration:
+    """Loads every forward-render configuration file in one directory.
+
+    Args:
+        configuration_directory: Directory holding the six TOML files.
+
+    Returns:
+        The whole forward run configuration.
+    """
+    return ForwardSimulationConfiguration(
+        mesh=MeshConfiguration.from_dict(
+            read_toml_document(configuration_directory / MESH_FILENAME)["mesh"]
+        ),
+        wind=WindConfiguration.from_dict(
+            read_toml_document(configuration_directory / WIND_FILENAME)["wind"]
+        ),
+        fire=FireSimulationConfiguration.from_dict(
+            read_toml_document(configuration_directory / FIRE_FILENAME)["fire"]
+        ),
+        receiver=ReceiverConfiguration.from_dict(
+            read_toml_document(configuration_directory / RECEIVER_FILENAME)["receiver"]
+        ),
+        acoustic=AcousticRenderingConfiguration.from_dict(
+            read_toml_document(configuration_directory / ACOUSTIC_RENDERING_FILENAME)[
+                "acoustic_rendering"
+            ]
+        ),
+        atmosphere=load_atmospheric_conditions(
+            configuration_directory / ENVIRONMENT_FILENAME
         ),
         configuration_directory=configuration_directory,
     )

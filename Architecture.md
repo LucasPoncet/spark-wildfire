@@ -229,6 +229,17 @@ Functions to implement:
  
 **Extension → per-cell fuel heterogeneity:** instead of one global `FuelProperties`, query the fuel field at each cell position. Requires the fuel field to return per-cell properties. Structurally: replace `self.fuel` with `self.fuel_field.sample(positions)`.
  
+### `time_step_calculator.py` ✅ implemented
+
+**Owns:** `compute_maximum_stable_time_step_s`, the discrete CFL condition applied to front
+tracking: the time fire needs to cross the shortest mesh edge, scaled by a safety factor.
+**Never:** Runs the fire.
+
+**Also clamped by the residence time.** A timestep longer than a cell stays alight lets a cell
+ignite and burn out between two samples, so the renderer never sees it. Passing `residence_time_s`
+caps the step at `safety_factor * residence_time_s`; without it the default 100 m run samples 22.31 s
+apart against a 20 s residence time and the first step renders silence.
+
 ### Extension → `game_of_life_spread_engine.py`
  
 **Status:** Not yet in tree but planned. Simplest possible engine: a cell ignites if ≥ N neighbors are burning. Fixed burnout timer. No physics. Useful as a sanity check that the protocol, the mesh, and the visualization pipeline all work before introducing real ROS equations.
@@ -271,8 +282,12 @@ The forward acoustic render is: `received_levels = gain_matrix.T @ source_amplit
  
 ### `burning_cell_source_model.py` ✅ implemented
  
-**Owns:** `BurningCellSourceModel`. Takes a `FireState`, returns `(source_positions_xyz, source_amplitudes)`. The only bridge between the fire domain and the acoustic domain.
+**Owns:** `BurningCellSources` and the two emission models that build it. `extract_burning_cell_sources` radiates every burning cell; `extract_fire_front_sources` radiates only the burning cells that still have an unignited neighbor. Also `compute_fire_front_mask` and `identify_connected_front_components`, which labels each separate front largest-first from the mesh adjacency. The only bridge between the fire domain and the acoustic domain.
 **Never:** Knows about receivers, channels, or propagation.
+
+**The two emission models coincide whenever the burning band is one cell thick.** With pine needle litter a cell burns out in 20 s while fire needs 25 s to cross a 0.5 m edge at 2 m/s wind, so no burning cell is ever interior and `front_only` returns exactly what `all_burning` returns. The distinction appears once the residence time exceeds the crossing time: at `residence_time_s = 200` the front is 92 cells where the burning area is 453.
+
+**Component labels count fragments, not fires.** They are honest labels on whatever mask they are given; when the burning band is sparse the same physical ring reports as many components. A count is only "how many separate fires" when the band is connected.
  
 **Day-one version:** amplitude is a constant for every burning cell. All fires sound the same.
  
@@ -306,6 +321,17 @@ A gain matrix cannot carry a delay, so this is a separate entry point rather tha
 channel, so channels decorrelate as the ratio falls — which is what degrades the delay estimate.
 **Never:** Shapes noise to a spectrum; that belongs to a sensor model.
  
+### `receiver_placement.py` ✅ implemented
+
+**Owns:** `place_receivers_in_ring`, `place_receivers_in_grid`, `place_receivers_randomly` and the
+`place_receivers_from_configuration` dispatcher that resolves fractional layout centres against the
+domain extent. Pure geometry; receivers sit on the ground plane, so z is not carried.
+**Never:** Knows what will be rendered to them.
+
+This is the one module in `acoustic/` that imports `config/`, because the dispatcher exists to turn
+a strategy name into a layout. The three placement functions underneath it take plain floats and
+import nothing.
+
 ### `measured_impulse_response_channel.py`
  
 **Owns:** Stub for a channel built from experimentally measured impulse responses. Loads measured `h` from file, applies it as a convolution or frequency-domain multiply.
@@ -444,7 +470,9 @@ Used by both the estimator's window loop and the coherence measurement.
  
 **Owns:** Nested frozen dataclasses describing what to build, and the TOML loaders that fill them from `configs/`. Fully serializable to JSON.
 
-Planned for the forward simulation: `MeshConfiguration`, `FuelConfiguration`, `WindConfiguration`, `SpreadEngineConfiguration`, `ChannelConfiguration`, `ReceiverConfiguration`.
+Implemented for the forward render: `MeshConfiguration`, `WindConfiguration`, `FireSimulationConfiguration`, `ReceiverConfiguration` and `AcousticRenderingConfiguration`, one module each, grouped under `ForwardSimulationConfiguration`. Still planned: `FuelConfiguration` and `SpreadEngineConfiguration`, which today are a preset name and a hard-wired engine.
+
+`ForwardSimulationConfiguration` sits **alongside** `SimulationConfiguration`, not inside it. The two pipelines share only the air conditions, and folding the fire model into the object the estimator loads would put `fire/` one attribute away from the code that must never reach it.
 
 Implemented for the localization pipeline: `BandConfiguration`, `WindowConfiguration`, `DelayEstimationConfiguration`, `TriangulationConfiguration` (grouped under `LocalizationConfiguration`), plus `DataConfiguration`, `GeometryConfiguration`, `ForwardModelConfiguration` and the top-level `SimulationConfiguration`.
 **Never:** Imports concrete implementations.
@@ -459,6 +487,11 @@ Implemented for the localization pipeline: `BandConfiguration`, `WindowConfigura
 | `geometry.toml` | Domain size, receiver positions, true source positions |
 | `forward_model.toml` | Reference distance, receiver-noise SNR and on/off, random seed |
 | `localization.toml` | Octave bands, analysis window, delay estimation, triangulation guards |
+| `mesh.toml` | Domain extent, cell spacing, 4- or 8-connectivity |
+| `wind.toml` | Wind speed and bearing |
+| `fire.toml` | Fuel preset, ignition point, run length, CFL safety factor, emission model |
+| `receiver.toml` | Placement strategy and its parameters |
+| `acoustic_rendering.toml` | Sample rate, segment duration, reference distance, source seed |
 
 Two categories deliberately stay in the source as named module-level constants, because they are
 not properties of a run: **published equation coefficients** (the ISO 9613-1 relaxation terms,
@@ -558,6 +591,19 @@ Reads raw recordings → segments → filters → normalizes → writes processe
 ### `run_kinematics_estimation.py`
  
 Loads a saved simulation run → renders acoustic field at receivers → runs the inverse estimator → writes metrics and comparison figures.
+
+### `run_acoustic_rendering.py` ✅ implemented
+
+Loads `configs/` → builds the mesh, fuel, wind and receivers → derives `dt` from the CFL condition →
+runs the arrival-time engine → extracts sources under the configured emission model → sums every
+source at every receiver → writes `receiver_signals.npy` of shape `(n_steps, n_receivers, n_samples)`
+alongside `receiver_positions_xy_m.npy`, `ground_truth.json`, `config.json` and `metadata.json` into
+`results/simulation_runs/<timestamp>/`. Takes `--configs <dir>`.
+
+**Blocks are padded to one fixed length.** Propagation delay makes each rendered block a different
+length, so the run sizes once against the worst-case source–receiver distance in the domain and pads
+or trims every block to it. Without this the saved array cannot be rectangular and the silent steps
+do not match the rendered ones.
 
 ### `run_single_source_localization.py` ✅ implemented
 
