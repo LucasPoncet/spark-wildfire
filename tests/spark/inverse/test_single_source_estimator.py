@@ -1,21 +1,31 @@
 from dataclasses import replace
+from typing import Protocol
 
 import numpy as np
 import pytest
 
-from src.config.simulation_configuration import LocalizationConfiguration
-from src.spark.acoustic.free_field_propagation import render_receiver_signals
-from src.spark.acoustic.receiver_noise import add_white_noise_to_receiver_signals
-from src.spark.atmosphere.atmospheric_conditions import AtmosphericConditions
-from src.spark.inverse.single_source_estimator import (
+from config.simulation_configuration import LocalizationConfiguration
+from spark.acoustic.free_field_propagation import render_receiver_signals
+from spark.acoustic.receiver_noise import add_white_noise_to_receiver_signals
+from spark.atmosphere.atmospheric_conditions import AtmosphericConditions
+from spark.inverse.single_source_estimator import (
+    SingleSourceEstimator,
     SingleSourceLocalization,
-    SingleSourceLocalizer,
     compute_error_ellipse_semi_axes_m,
     localize_single_source,
 )
-from src.utils.array_types import Float64Array
+from utils.array_types import Float64Array
 
 EXPECTED_WINDOW_COUNT: int = 19
+
+
+class LocalizeCallable(Protocol):
+    def __call__(
+        self,
+        true_position_xy_m: Float64Array,
+        signal_to_noise_ratio_db: float | None = None,
+        seed: int = 0,
+    ) -> SingleSourceLocalization: ...
 
 
 def localize_truth(
@@ -43,7 +53,9 @@ def localize_truth(
     )
     if signal_to_noise_ratio_db is not None:
         receiver_signals = add_white_noise_to_receiver_signals(
-            receiver_signals, signal_to_noise_ratio_db, np.random.default_rng(seed + 100)
+            receiver_signals,
+            signal_to_noise_ratio_db,
+            np.random.default_rng(seed + 100),
         )
     return localize_single_source(
         receiver_signals[0],
@@ -65,7 +77,7 @@ def localize(
     sample_rate_hz: int,
     clip_duration_s: float,
     reference_distance_m: float,
-):
+) -> LocalizeCallable:
     def run(
         true_position_xy_m: Float64Array,
         signal_to_noise_ratio_db: float | None = None,
@@ -96,13 +108,17 @@ def localize(
         np.array([60.0, 85.0]),
     ],
 )
-def test_noiseless_synthetic_source_is_recovered(localize, true_position_xy_m: Float64Array) -> None:
+def test_noiseless_synthetic_source_is_recovered(
+    localize: LocalizeCallable, true_position_xy_m: Float64Array
+) -> None:
     localization = localize(true_position_xy_m)
     assert np.linalg.norm(localization.position_xy_m - true_position_xy_m) < 0.5
 
 
 def test_path_difference_matches_the_true_geometry(
-    localize, receiver_1_xy_m: Float64Array, receiver_2_xy_m: Float64Array
+    localize: LocalizeCallable,
+    receiver_1_xy_m: Float64Array,
+    receiver_2_xy_m: Float64Array,
 ) -> None:
     true_position_xy_m = np.array([25.0, 70.0])
     result = localize(true_position_xy_m)
@@ -110,11 +126,15 @@ def test_path_difference_matches_the_true_geometry(
         np.linalg.norm(true_position_xy_m - receiver_2_xy_m)
         - np.linalg.norm(true_position_xy_m - receiver_1_xy_m)
     )
-    assert result.path_difference_m == pytest.approx(expected_path_difference_m, abs=0.05)
+    assert result.path_difference_m == pytest.approx(
+        expected_path_difference_m, abs=0.05
+    )
 
 
 def test_geometric_level_difference_matches_the_true_range_ratio(
-    localize, receiver_1_xy_m: Float64Array, receiver_2_xy_m: Float64Array
+    localize: LocalizeCallable,
+    receiver_1_xy_m: Float64Array,
+    receiver_2_xy_m: Float64Array,
 ) -> None:
     true_position_xy_m = np.array([40.0, 20.0])
     result = localize(true_position_xy_m)
@@ -127,19 +147,23 @@ def test_geometric_level_difference_matches_the_true_range_ratio(
     )
 
 
-def test_window_count_matches_the_configured_plan(localize) -> None:
+def test_window_count_matches_the_configured_plan(localize: LocalizeCallable) -> None:
     assert localize(np.array([40.0, 20.0])).window_count == EXPECTED_WINDOW_COUNT
 
 
 def test_source_on_the_perpendicular_bisector_is_flagged(
-    localize, receiver_1_xy_m: Float64Array, receiver_2_xy_m: Float64Array
+    localize: LocalizeCallable,
+    receiver_1_xy_m: Float64Array,
+    receiver_2_xy_m: Float64Array,
 ) -> None:
     midpoint = 0.5 * (receiver_1_xy_m + receiver_2_xy_m)
     assert localize(midpoint + np.array([0.0, 50.0])).is_near_singular
 
 
 def test_source_on_the_perpendicular_bisector_collapses_onto_the_baseline(
-    localize, receiver_1_xy_m: Float64Array, receiver_2_xy_m: Float64Array
+    localize: LocalizeCallable,
+    receiver_1_xy_m: Float64Array,
+    receiver_2_xy_m: Float64Array,
 ) -> None:
     midpoint = 0.5 * (receiver_1_xy_m + receiver_2_xy_m)
     result = localize(midpoint + np.array([0.0, 50.0]))
@@ -148,7 +172,7 @@ def test_source_on_the_perpendicular_bisector_collapses_onto_the_baseline(
     assert np.allclose(result.position_xy_m, midpoint, atol=1e-6)
 
 
-def test_error_grows_with_receiver_noise(localize) -> None:
+def test_error_grows_with_receiver_noise(localize: LocalizeCallable) -> None:
     true_position_xy_m = np.array([25.0, 70.0])
     errors_m = [
         float(
@@ -167,14 +191,16 @@ def test_error_grows_with_receiver_noise(localize) -> None:
     assert errors_m[0] < errors_m[1] < errors_m[2]
 
 
-def test_ellipse_grows_with_receiver_noise(localize) -> None:
+def test_ellipse_grows_with_receiver_noise(localize: LocalizeCallable) -> None:
     true_position_xy_m = np.array([25.0, 70.0])
     semi_major_m = [
         float(
             np.mean(
                 [
                     compute_error_ellipse_semi_axes_m(
-                        localize(true_position_xy_m, snr_db, seed).position_covariance_m2
+                        localize(
+                            true_position_xy_m, snr_db, seed
+                        ).position_covariance_m2
                     )[0]
                     for seed in range(3)
                 ]
@@ -185,9 +211,11 @@ def test_ellipse_grows_with_receiver_noise(localize) -> None:
     assert semi_major_m[0] < semi_major_m[1] < semi_major_m[2]
 
 
-def test_ellipse_semi_axes_are_ordered(localize) -> None:
+def test_ellipse_semi_axes_are_ordered(localize: LocalizeCallable) -> None:
     result = localize(np.array([25.0, 70.0]), 10.0)
-    semi_major_m, semi_minor_m, _ = compute_error_ellipse_semi_axes_m(result.position_covariance_m2)
+    semi_major_m, semi_minor_m, _ = compute_error_ellipse_semi_axes_m(
+        result.position_covariance_m2
+    )
     assert semi_major_m >= semi_minor_m >= 0.0
 
 
@@ -201,7 +229,9 @@ def test_localizer_class_matches_the_functional_interface(
     reference_distance_m: float,
 ) -> None:
     true_position_xy_m = np.array([75.0, 35.0])
-    source_signal = np.random.default_rng(0).normal(size=int(clip_duration_s * sample_rate_hz))
+    source_signal = np.random.default_rng(0).normal(
+        size=int(clip_duration_s * sample_rate_hz)
+    )
     receiver_signals = render_receiver_signals(
         source_signal,
         sample_rate_hz,
@@ -210,10 +240,12 @@ def test_localizer_class_matches_the_functional_interface(
         atmosphere,
         reference_distance_m,
     )
-    localizer = SingleSourceLocalizer(
+    estimator = SingleSourceEstimator(
         receiver_1_xy_m, receiver_2_xy_m, atmosphere, localization
     )
-    from_class = localizer.localize(receiver_signals[0], receiver_signals[1], sample_rate_hz)
+    from_class = estimator.estimate(
+        receiver_signals[0], receiver_signals[1], sample_rate_hz
+    )
     from_function = localize_single_source(
         receiver_signals[0],
         receiver_signals[1],
@@ -236,7 +268,9 @@ def test_swapping_the_receivers_mirrors_the_estimate_across_the_baseline(
     reference_distance_m: float,
 ) -> None:
     true_position_xy_m = np.array([40.0, 20.0])
-    source_signal = np.random.default_rng(0).normal(size=int(clip_duration_s * sample_rate_hz))
+    source_signal = np.random.default_rng(0).normal(
+        size=int(clip_duration_s * sample_rate_hz)
+    )
     receiver_signals = render_receiver_signals(
         source_signal,
         sample_rate_hz,
@@ -265,7 +299,7 @@ def test_swapping_the_receivers_mirrors_the_estimate_across_the_baseline(
 
 
 def test_band_diagnostics_have_one_entry_per_configured_band(
-    localize, localization: LocalizationConfiguration
+    localize: LocalizeCallable, localization: LocalizationConfiguration
 ) -> None:
     result = localize(np.array([40.0, 20.0]))
     band_count = len(localization.bands.center_frequencies_hz)

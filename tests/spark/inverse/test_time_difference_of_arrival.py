@@ -1,37 +1,11 @@
 import numpy as np
 import pytest
 
-from src.audio.signal_alignment import (
-    align_channel_pair,
-    compute_valid_index_range,
-    shift_signal_by_samples,
-)
-from src.config.simulation_configuration import DelayEstimationConfiguration
-from src.spark.inverse.time_difference_of_arrival import estimate_time_difference_of_arrival
+from audio.signal_alignment import shift_signal_by_samples
+from config.simulation_configuration import DelayEstimationConfiguration
+from spark.inverse.time_difference_of_arrival import estimate_time_difference_of_arrival
 
 SEARCH_WINDOW_S: float = 0.02
-
-
-def test_shift_delays_a_signal_for_a_positive_shift() -> None:
-    signal = np.arange(5.0)
-    assert np.allclose(shift_signal_by_samples(signal, 2), [0.0, 0.0, 0.0, 1.0, 2.0])
-
-
-def test_shift_advances_a_signal_for_a_negative_shift() -> None:
-    signal = np.arange(5.0)
-    assert np.allclose(shift_signal_by_samples(signal, -2), [2.0, 3.0, 4.0, 0.0, 0.0])
-
-
-def test_valid_index_range_excludes_the_zero_filled_region() -> None:
-    assert compute_valid_index_range(100, 100, 10) == (10, 100)
-    assert compute_valid_index_range(100, 100, -10) == (0, 90)
-
-
-def test_alignment_recovers_a_known_delay() -> None:
-    base = np.random.default_rng(0).normal(size=1000)
-    delayed = shift_signal_by_samples(base, 40)
-    aligned_1, aligned_2 = align_channel_pair(delayed, base, 40)
-    assert np.allclose(aligned_1, aligned_2)
 
 
 def test_delay_is_positive_when_the_first_receiver_is_further_away(
@@ -88,7 +62,11 @@ def test_maximum_delay_bounds_the_search(
 ) -> None:
     base = np.random.default_rng(3).normal(size=sample_rate_hz)
     arrival = estimate_time_difference_of_arrival(
-        shift_signal_by_samples(base, 4000), base, sample_rate_hz, 0.01, delay_estimation
+        shift_signal_by_samples(base, 4000),
+        base,
+        sample_rate_hz,
+        0.01,
+        delay_estimation,
     )
     assert abs(arrival.delay_s) <= 0.01
 

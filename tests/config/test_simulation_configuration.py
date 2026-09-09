@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.config.simulation_configuration import (
+from config.simulation_configuration import (
     DATA_FILENAME,
     ENVIRONMENT_FILENAME,
     FORWARD_MODEL_FILENAME,
@@ -65,14 +65,18 @@ def test_source_positions_lie_inside_the_domain(
 ) -> None:
     geometry = simulation_configuration.geometry
     sources = geometry.true_source_positions_xy_m
-    assert np.all(sources[:, 0] >= 0.0) and np.all(sources[:, 0] <= geometry.domain.size_x_m)
-    assert np.all(sources[:, 1] >= 0.0) and np.all(sources[:, 1] <= geometry.domain.size_y_m)
+    assert np.all(sources[:, 0] >= 0.0)
+    assert np.all(sources[:, 0] <= geometry.domain.size_x_m)
+    assert np.all(sources[:, 1] >= 0.0)
+    assert np.all(sources[:, 1] <= geometry.domain.size_y_m)
 
 
 def test_band_centres_are_ascending_octaves(
     simulation_configuration: SimulationConfiguration,
 ) -> None:
-    centers = np.asarray(simulation_configuration.localization.bands.center_frequencies_hz)
+    centers = np.asarray(
+        simulation_configuration.localization.bands.center_frequencies_hz
+    )
     assert centers.size > 1
     assert np.all(np.diff(centers) > 0.0)
     assert np.allclose(centers[1:] / centers[:-1], 2.0)
@@ -106,13 +110,15 @@ def test_disabled_noise_reports_no_signal_to_noise_ratio(
 ) -> None:
     noise = simulation_configuration.forward_model.receiver_noise
     if noise.enabled:
-        assert noise.requested_signal_to_noise_ratio_db == noise.signal_to_noise_ratio_db
+        assert (
+            noise.requested_signal_to_noise_ratio_db == noise.signal_to_noise_ratio_db
+        )
     else:
         assert noise.requested_signal_to_noise_ratio_db is None
 
 
 def test_position_array_rejects_malformed_input() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="list of"):
         to_position_array([[1.0, 2.0, 3.0]])
 
 
@@ -124,14 +130,17 @@ def test_geometry_requires_exactly_two_receivers(tmp_path: Path) -> None:
         "[sources]\ntrue_positions_xy_m = [[50.0, 50.0]]\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="exactly two receivers"):
         load_geometry_configuration(path)
 
 
-def test_an_edited_configuration_directory_changes_the_loaded_values(tmp_path: Path) -> None:
+def test_an_edited_configuration_directory_changes_the_loaded_values(
+    tmp_path: Path,
+) -> None:
     for filename in EXPECTED_FILENAMES:
         (tmp_path / filename).write_text(
-            (CONFIGURATION_DIRECTORY / filename).read_text(encoding="utf-8"), encoding="utf-8"
+            (CONFIGURATION_DIRECTORY / filename).read_text(encoding="utf-8"),
+            encoding="utf-8",
         )
     (tmp_path / ENVIRONMENT_FILENAME).write_text(
         "[atmosphere]\nair_temperature_celsius = 30.0\n"

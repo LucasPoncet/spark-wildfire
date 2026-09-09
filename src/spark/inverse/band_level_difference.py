@@ -2,19 +2,31 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from src.audio.band_level_meter import (
+from audio.band_level_meter import (
     compute_band_level_db,
     compute_window_start_indices,
     make_analysis_window,
 )
-from src.audio.octave_band_filter import apply_octave_bandpass
-from src.audio.signal_alignment import compute_valid_index_range, shift_signal_by_samples
-from src.config.simulation_configuration import BandConfiguration, WindowConfiguration
-from src.utils.array_types import Float64Array
+from audio.octave_band_filter import apply_octave_bandpass
+from audio.signal_alignment import compute_valid_index_range, shift_signal_by_samples
+from config.simulation_configuration import BandConfiguration, WindowConfiguration
+from utils.array_types import Float64Array
 
 
 @dataclass(frozen=True)
 class BandLevelDifferences:
+    """Per-band geometric level difference and its spread across analysis windows.
+
+    Attributes:
+        band_center_frequencies_hz: ISO band centres, shape `(n_bands,)`.
+        geometric_level_difference_db: Mean of the per-window estimates, per band.
+        window_variance_db2: Variance across windows, per band.
+        mean_variance_db2: Variance of the mean, that is `window_variance_db2`
+            divided by the effective window count.
+        window_count: Number of analysis windows used.
+        effective_window_count: Number of windows counted as independent.
+    """
+
     band_center_frequencies_hz: Float64Array
     geometric_level_difference_db: Float64Array
     window_variance_db2: Float64Array
@@ -26,6 +38,18 @@ class BandLevelDifferences:
 def compute_effective_window_count(
     window_count: int, window_configuration: WindowConfiguration
 ) -> float:
+    """Counts how many of the analysis windows are effectively independent.
+
+    Overlapping windows share samples, so they do not each contribute a full degree
+    of freedom to the variance of the mean.
+
+    Args:
+        window_count: Number of windows actually taken.
+        window_configuration: Overlap fraction and the independence factor.
+
+    Returns:
+        Effective count, equal to `window_count` when the windows do not overlap.
+    """
     if window_configuration.overlap_fraction <= 0.0:
         return float(window_count)
     return window_configuration.independent_window_fraction * window_count
@@ -41,6 +65,29 @@ def compute_band_level_differences(
     band_configuration: BandConfiguration,
     window_configuration: WindowConfiguration,
 ) -> BandLevelDifferences:
+    """Computes the geometric level difference per band, per analysis window.
+
+    Each window and band yields one estimate of the same geometric term, by
+    subtracting the atmospheric absorption already accounted for by the path
+    difference from the measured level difference.
+
+    Args:
+        signal_1: First receiver channel.
+        signal_2: Second receiver channel.
+        sample_rate_hz: Sample rate in hertz.
+        absorption_coefficients_db_per_m: One coefficient per band, in dB per metre.
+        path_difference_m: Path difference from the delay estimate, in metres.
+        alignment_shift_samples: Shift that puts channel 2 on channel 1's clock.
+        band_configuration: Band centres, filter order and Nyquist guard.
+        window_configuration: Window duration, overlap, floors and independence.
+
+    Returns:
+        Per-band means and variances over the analysis windows.
+
+    Raises:
+        ValueError: If the coefficient count does not match the band count, or fewer
+            than two windows fit in the overlapping region.
+    """
     first = np.asarray(signal_1, dtype=np.float64)
     second = np.asarray(signal_2, dtype=np.float64)
     centers_hz = np.asarray(band_configuration.center_frequencies_hz, dtype=np.float64)
@@ -48,9 +95,10 @@ def compute_band_level_differences(
     if absorption.size != centers_hz.size:
         raise ValueError("one absorption coefficient is required per octave band")
 
-    window_sample_count = int(round(window_configuration.duration_s * sample_rate_hz))
+    window_sample_count = round(window_configuration.duration_s * sample_rate_hz)
     hop_sample_count = max(
-        int(round(window_sample_count * (1.0 - window_configuration.overlap_fraction))), 1
+        round(window_sample_count * (1.0 - window_configuration.overlap_fraction)),
+        1,
     )
     window = make_analysis_window(window_sample_count)
     first_index, last_index = compute_valid_index_range(
@@ -60,14 +108,20 @@ def compute_band_level_differences(
         first_index, last_index, window_sample_count, hop_sample_count
     )
     if len(window_starts) < 2:
-        raise ValueError("at least two analysis windows are required to estimate a variance")
+        raise ValueError(
+            "at least two analysis windows are required to estimate a variance"
+        )
 
     window_count = len(window_starts)
-    effective_window_count = compute_effective_window_count(window_count, window_configuration)
+    effective_window_count = compute_effective_window_count(
+        window_count, window_configuration
+    )
 
     means_db: list[float] = []
     window_variances_db2: list[float] = []
-    for center_frequency_hz, absorption_db_per_m in zip(centers_hz, absorption, strict=True):
+    for center_frequency_hz, absorption_db_per_m in zip(
+        centers_hz, absorption, strict=True
+    ):
         band_1 = apply_octave_bandpass(
             first,
             float(center_frequency_hz),
@@ -87,8 +141,12 @@ def compute_band_level_differences(
         )
         estimates_db = np.array(
             [
-                compute_band_level_db(band_1[start : start + window_sample_count], window)
-                - compute_band_level_db(band_2[start : start + window_sample_count], window)
+                compute_band_level_db(
+                    band_1[start : start + window_sample_count], window
+                )
+                - compute_band_level_db(
+                    band_2[start : start + window_sample_count], window
+                )
                 - absorption_db_per_m * path_difference_m
                 for start in window_starts
             ],

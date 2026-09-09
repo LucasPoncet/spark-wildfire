@@ -34,14 +34,24 @@ src/spark/fields/  →  src/spark/terrain/  →  src/spark/fire/  →  src/spark
                                                                         │
                                                                    src/spark/inverse/
  
+src/spark/atmosphere/   ← leaf; imported by BOTH acoustic/ and inverse/
+src/audio/              ← leaf; signal operations, no domain imports
 src/config/             ← imported by scripts, imports Protocols only
 src/utils/io/           ← imported by scripts, imports domain types for serialization
 src/utils/visualization ← imports everything, imported by nothing
-src/audio/              ← standalone, no domain imports
 scripts/                ← imports everything, imported by nothing
 ```
+
+**Import root.** `src/` is the source root, not a package: `pythonpath = ["src"]` and
+`packages = ["src/spark", "src/utils", "src/audio", "src/config"]`. Imports are therefore
+`from spark.terrain...`, `from audio.octave_band_filter...` — never `from src....`.
  
 **Hard rule:** `src/spark/inverse/` must never import from `src/spark/fire/`, `src/spark/terrain/`, `src/spark/fields/`, or `src/spark/acoustic/`. Its only inputs are receiver signals and receiver positions. This prevents the pipeline from committing the leakage defect the paper criticizes. Enforced by `tests/test_inverse_does_not_import_forward_model.py`.
+
+`inverse/` **may** import `audio/` and `atmosphere/`. Neither carries simulation state: `audio/` is
+pure signal processing, and the air conditions an estimator uses are the ones its caller *assumes*,
+supplied as an argument and never read back from the forward model. The isolation test names the
+four forbidden packages explicitly and asserts they exist, so it cannot pass vacuously.
  
 ---
  
@@ -220,9 +230,34 @@ Functions to implement:
  
 ---
  
+## `src/spark/atmosphere/` — ambient air physics
+
+Stateless, leaf-level. Both `acoustic/` (forward) and `inverse/` (estimator) import it, which is
+what keeps a single definition of the absorption coefficient: if the two sides each carried their
+own, the estimator would silently be inverting a different physics than the renderer produced.
+
+### `atmospheric_conditions.py` ✅ implemented
+
+**Owns:** `AtmosphericConditions` frozen dataclass (temperature, humidity, pressure) and
+`compute_speed_of_sound_m_per_s`. Also the universal constants the ISO formulas reference.
+**Never:** Knows about signals, geometry or receivers.
+
+### `atmospheric_absorption.py` ✅ implemented
+
+**Owns:** `compute_absorption_coefficients_db_per_m`, the ISO 9613-1 absorption `α(f)` in dB/m,
+vectorized over frequency. Reproduces the published table to six decimals at four
+temperature/humidity pairs.
+**Never:** Assumes a band structure — it evaluates at any frequency, band centre or FFT bin alike.
+
+**Why recomputed per scenario:** `α` moves by roughly 30 % across realistic conditions, and the
+high bands where it matters most move furthest. A generic table would bias exactly the bands that
+carry the range information.
+
+---
+
 ## `src/spark/acoustic/` — sound propagation
  
-### `channel_protocol.py`
+### `channel_protocol.py` ✅ implemented
  
 **Owns:** `ChannelProtocol` with method `compute_gain_matrix(source_positions_xyz, receiver_positions_xyz) -> ndarray` returning shape `(n_sources, n_receivers)`.
 **Never:** Contains implementation.
@@ -240,14 +275,31 @@ The forward acoustic render is: `received_levels = gain_matrix.T @ source_amplit
  
 **Extension → spectral source model:** instead of a scalar amplitude, return a spectrum per cell. Amplitude in the crackling band (1–15 kHz) driven by fuel type and burn rate. Amplitude in the puffing band (< 20 Hz) driven by flame diameter via Cetegen's scaling `f_puff ≈ 1.5 * D^(-0.5)`. Return type widens from `(n,)` to `(n, n_freq)`.
  
-### `exponential_attenuation_channel.py`
+### `exponential_attenuation_channel.py` ✅ implemented
  
-**Owns:** `ExponentialAttenuationChannel`. Implements `gain(r) = exp(-α * r) / r` where `r` is Euclidean distance and `α` is the attenuation coefficient. Builds the full `(n_sources, n_receivers)` gain matrix.
+**Owns:** `ExponentialAttenuationChannel`. Implements `gain(r) = exp(-α * r) / r` where `r` is Euclidean distance and `α` is the attenuation coefficient. Builds the full `(n_sources, n_receivers)` gain matrix. Also the shared gain primitives `compute_source_receiver_distances_m`, `compute_geometric_spreading_gain` and `compute_atmospheric_absorption_gain`, which `free_field_propagation.py` reuses so the two forms of the channel cannot disagree.
 **Never:** Knows about fire state or terrain.
  
-**Extension → frequency-dependent attenuation:** `α` becomes a function of frequency. The gain matrix widens to `(n_sources, n_receivers, n_freq)`. Atmospheric absorption rises with frequency, so high-frequency crackle content decays faster than low-frequency roar. This is what makes range recoverable.
+**Extension → frequency-dependent attenuation ✅ implemented:** `AtmosphericAbsorptionChannel`, in this same file. `α` comes from ISO 9613-1 at the scenario's air conditions rather than from one fitted constant, and the gain matrix widens to `(n_sources, n_receivers, n_freq)`. Atmospheric absorption rises with frequency, so high-frequency crackle content decays faster than low-frequency roar. This is what makes range recoverable.
  
 **Extension → terrain-aware path loss:** if source and receiver are not line-of-sight (terrain obstruction), apply diffraction loss. Requires querying the elevation field along the source–receiver path. Add as a wrapper around the base channel, not as a modification to it.
+
+### `free_field_propagation.py` ✅ implemented
+
+**Owns:** The same channel applied to a **waveform** rather than to amplitudes.
+`apply_free_field_propagation` folds propagation delay, `1/r` spreading and frequency-dependent
+absorption into one real FFT; `render_receiver_signals` returns one channel per receiver on a
+common clock. The signal is zero-padded by the delay first, so the tail never wraps into the head.
+**Never:** Knows the source is a fire, or that anyone will later invert it.
+
+A gain matrix cannot carry a delay, so this is a separate entry point rather than a method on
+`ChannelProtocol` — the time-difference-of-arrival the estimator needs lives only in the waveform.
+
+### `receiver_noise.py` ✅ implemented
+
+**Owns:** `add_white_noise_at_snr_db` and its multi-channel form. Noise is drawn independently per
+channel, so channels decorrelate as the ratio falls — which is what degrades the delay estimate.
+**Never:** Shapes noise to a spectrum; that belongs to a sensor model.
  
 ### `measured_impulse_response_channel.py`
  
@@ -265,10 +317,58 @@ The forward acoustic render is: `received_levels = gain_matrix.T @ source_amplit
 **Owns:** `KinematicsEstimatorProtocol` with method `estimate(receiver_signal_levels, receiver_positions_xyz) -> FrontKinematics`. `FrontKinematics` is a dataclass holding `bearing_rad`, `position_xyz`, `rate_of_spread_m_per_s` and associated uncertainties.
 **Never:** Contains implementation.
  
-### `single_source_estimator.py`
+### `time_difference_of_arrival.py` ✅ implemented
+
+**Owns:** `estimate_time_difference_of_arrival`. GCC-PHAT with parabolic sub-sample refinement,
+plus the variance of that delay from effective bandwidth and coherence.
+**Never:** Knows what the delay will be used for.
+
+**Sign convention:** `τ > 0` means receiver 1 hears the event *later*, so `D = −c·τ`. Pinned by
+test, because getting it backwards silently mirrors every estimate.
+
+**Measure coherence after alignment.** On the raw pair, a baseline delay comparable to the Welch
+segment collapses the coherence; measured that way `σ_D` came out at 6.5 m instead of 0.014 m and
+the error ellipse was meaningless.
+
+### `band_level_difference.py` ✅ implemented
+
+**Owns:** The per-band, per-window geometric term `G_bm = ΔL_bm − α_b·D`; its mean, its variance
+across windows, and the variance *of that mean*.
+**Never:** Computes `α_b` — it is handed them, which is what keeps `atmosphere/` the single source.
+
+**Fuse the standard error, not the per-window variance.** `G_b` is a mean of `M` windows, so its
+uncertainty is `σ²_b / M_eff`. The factor is common to every band and cancels in `G_hat`, but using
+`σ²_b` directly inflates `var_G` by `M_eff ≈ 12` and deflates `χ²_ν` by the same factor. Both are
+kept on the result object.
+
+### `inverse_variance_fusion.py` ✅ implemented
+
+**Owns:** Generic inverse-variance weighted mean with its variance, residuals and `χ²_ν`.
+**Never:** Knows the quantity being fused is a level. Reusable for the multi-source case.
+
+### `level_ratio_triangulation.py` ✅ implemented
+
+**Owns:** `G, D → r1, r2 → (x, y)` in the baseline frame, the mirror-side choice, the near-singular
+guard, and the position covariance from a finite-difference Jacobian.
+**Never:** Touches signals.
+
+**The perpendicular bisector is a hard degeneracy, not poor precision.** There `r1 = r2`, so `D = 0`
+and `k = 1` at once and `r1 = D/(k−1)` is `0/0`. Every point along the bisector produces identical
+observables, so no estimator can separate them. Sensitivity goes as `r1²/D`, which is why the flag
+fires on a *band* around the bisector, not just on it.
+
+### `single_source_estimator.py` ✅ implemented
  
-**Owns:** `SingleSourceEstimator`. Assumes one fire front. Estimates distance from relative level decay across receivers (the unknown source amplitude cancels in the ratio). Triangulates position from multiple receiver pairs.
-**Never:** Accesses ground-truth fire state.
+**Owns:** `SingleSourceEstimator` and the `localize_single_source` driver that wires the four
+modules above together, plus the error ellipse. Assumes one fire front. Estimates the range ratio
+from relative level decay across receivers (the unknown source amplitude cancels in the ratio) and
+the range difference from the delay, then triangulates.
+**Never:** Accesses ground-truth fire state, or contains any of the four modules' maths itself.
+
+**Input contract differs from `KinematicsEstimatorProtocol`.** This estimator consumes receiver
+*waveforms*, not scalar `receiver_signal_levels`: the range difference comes from a time delay,
+which levels cannot supply. The protocol is left for a level-based estimator; reconciling the two
+(widening the protocol, or two protocols) is an open design decision, not an oversight.
  
 **Extension → bearing estimation:** use the spatial gradient of received levels across the receiver array to estimate the direction to the source.
  
@@ -295,9 +395,29 @@ The forward acoustic render is: `received_levels = gain_matrix.T @ source_amplit
  
 Standalone pipeline for processing real fire recordings. No imports from the simulation domain.
  
-### `recording_segmenter.py`
+### `recording_segmenter.py` ✅ implemented
  
-**Owns:** Cuts audio files into fixed-length segments (default 5 s) with configurable overlap.
+**Owns:** Cuts audio files into fixed-length segments (5 s and the overlap come from `configs/`) . A trailing partial segment is dropped rather than zero-padded.
+
+### `octave_band_filter.py` ✅ implemented
+
+**Owns:** ISO octave band edges (`f_c/√2`, `f_c·√2`, clipped below Nyquist) and a zero-phase
+Butterworth band-pass. Second-order-section form, not `b, a`: the 125 Hz band is narrow enough
+relative to 44.1 kHz that the transfer-function form loses accuracy.
+
+Kept separate from `lowpass_filter.py` on purpose. That file owns the *preprocessing* filter
+applied once to a recording; this one owns the *analysis* filterbank the estimator runs per window.
+Different consumers, different lifecycles.
+
+### `band_level_meter.py` ✅ implemented
+
+**Owns:** The Hann analysis window, the windowed RMS level in dB (window power divided out, so the
+level does not depend on window shape), and the window start indices for a range.
+
+### `signal_alignment.py` ✅ implemented
+
+**Owns:** Integer-sample shift, the valid overlap range after a shift, and the aligned channel pair.
+Used by both the estimator's window loop and the coherence measurement.
  
 ### `lowpass_filter.py`
  
@@ -315,12 +435,34 @@ Standalone pipeline for processing real fire recordings. No imports from the sim
  
 ## `src/config/` — configuration and wiring
  
-### `simulation_configuration.py`
+### `simulation_configuration.py` ✅ partly implemented
  
-**Owns:** Nested frozen dataclasses describing what to build. Fully serializable to JSON. One dataclass per component: `MeshConfiguration`, `FuelConfiguration`, `WindConfiguration`, `SpreadEngineConfiguration`, `ChannelConfiguration`, `ReceiverConfiguration`.
+**Owns:** Nested frozen dataclasses describing what to build, and the TOML loaders that fill them from `configs/`. Fully serializable to JSON.
+
+Planned for the forward simulation: `MeshConfiguration`, `FuelConfiguration`, `WindConfiguration`, `SpreadEngineConfiguration`, `ChannelConfiguration`, `ReceiverConfiguration`.
+
+Implemented for the localization pipeline: `BandConfiguration`, `WindowConfiguration`, `DelayEstimationConfiguration`, `TriangulationConfiguration` (grouped under `LocalizationConfiguration`), plus `DataConfiguration`, `GeometryConfiguration`, `ForwardModelConfiguration` and the top-level `SimulationConfiguration`.
 **Never:** Imports concrete implementations.
+
+**No tunable value is written in the source.** Everything a run can change lives in `configs/`, and
+`--configs <dir>` swaps the whole set:
+
+| File | Holds |
+|---|---|
+| `environment.toml` | Air temperature, relative humidity, pressure |
+| `data.toml` | Recording path, clip duration and overlap, metrics output path |
+| `geometry.toml` | Domain size, receiver positions, true source positions |
+| `forward_model.toml` | Reference distance, receiver-noise SNR and on/off, random seed |
+| `localization.toml` | Octave bands, analysis window, delay estimation, triangulation guards |
+
+Two categories deliberately stay in the source as named module-level constants, because they are
+not properties of a run: **published equation coefficients** (the ISO 9613-1 relaxation terms,
+`20.05` in the speed of sound) and **numerical guards** (`SPECTRUM_FLOOR`, `POWER_FLOOR`,
+`LEVEL_RATIO_FLOOR`). Leaf modules in `audio/` and `atmosphere/` carry **no defaults at all**, so a
+missing value is a `TypeError` at the call site rather than a silent fallback; config objects are
+unpacked at the boundary, which is why those two packages never import `config/`.
  
-**Extension → receiver layout configuration:** number of receivers, placement strategy (regular grid, random, ring), spacing. This is a swept parameter in the paper's degradation analysis.
+**Extension → receiver layout configuration:** number of receivers, placement strategy (regular grid, random, ring), spacing. This is a swept parameter in the paper's degradation analysis. `GeometryConfiguration` currently fixes exactly two receivers; widening it is where `ReceiverConfiguration` lands.
  
 ### `simulation_context.py`
  
@@ -359,14 +501,15 @@ Moves bytes. Never transforms scientific content.
  
 **Owns:** Loads a saved run back for replay or post-hoc analysis.
  
-### `audio_file_reader.py`
+### `audio_file_reader.py` ✅ implemented
  
-**Owns:** Reads audio files (wav, flac), returns `(samples: ndarray, sample_rate_hz: int)`.
+**Owns:** Reads audio files (wav, flac), returns `(samples: ndarray, sample_rate_hz: int)`. Optional
+mono downmix, and a header-only `read_audio_metadata`.
 **Never:** Filters, normalizes, or segments.
  
-### `metrics_writer.py`
+### `metrics_writer.py` ✅ implemented
  
-**Owns:** Appends metric records (JSON) to `results/metrics/`. Records are committed to git as the experiment record.
+**Owns:** Appends metric records (JSON) to `results/metrics/`, or writes a whole document. Records are committed to git as the experiment record. Carries a numpy-to-JSON converter, which is why it holds the repo's only `ANN401` exemption.
  
 ---
  
@@ -410,23 +553,36 @@ Reads raw recordings → segments → filters → normalizes → writes processe
 ### `run_kinematics_estimation.py`
  
 Loads a saved simulation run → renders acoustic field at receivers → runs the inverse estimator → writes metrics and comparison figures.
+
+### `run_single_source_localization.py` ✅ implemented
+
+Loads `configs/` → reads a recording → cuts it into clips → renders each clip to the two receivers
+→ localizes from those two signals alone → prints one table per source scenario and writes the
+metrics document. Takes no parameters of its own beyond `--configs <dir>`.
  
 ---
  
 ## `tests/`
  
-Mirror the `src/` tree. Each test file tests one source file.
+Mirror the `src/` tree, directory for directory: `tests/audio/`, `tests/config/`,
+`tests/spark/{acoustic,atmosphere,fields,fire,inverse,terrain}/`, `tests/utils/visualization/`.
+Each test file tests one source file and is named after it. Cross-cutting architectural tests
+(such as the isolation guard) sit at the top level, since they belong to no single source file.
+Shared fixtures live in `tests/conftest.py` and load the real `configs/`, so the configuration
+files are exercised on every run rather than duplicated in test constants.
  
 ### Mandatory tests
  
 | Test file | What it asserts |
 |---|---|
-| `test_square_grid_mesh.py` ✅ | Cell count, positions, neighbor connectivity, distances, unit directions |
-| `test_rate_of_spread_equations.py` ✅ | Table 2 startup values, Fig. 6 reduced curve, closed form against the implicit Eq. 13b |
-| `test_exponential_attenuation_channel.py` | Gain matrix shape, inverse-square-law sanity, symmetry |
-| `test_inverse_does_not_import_forward_model.py` | `inverse/` has no import path to `fire/`, `terrain/`, `fields/`, or `acoustic/` |
+| `spark/terrain/test_square_grid_mesh.py` ✅ | Cell count, positions, neighbor connectivity, distances, unit directions |
+| `spark/fire/test_rate_of_spread_equations.py` ✅ | Table 2 startup values, Fig. 6 reduced curve, closed form against the implicit Eq. 13b |
+| `spark/acoustic/test_exponential_attenuation_channel.py` ✅ | Gain matrix shape, inverse-square-law sanity, symmetry, frequency widening |
+| `test_inverse_does_not_import_forward_model.py` ✅ | `inverse/` has no import path to `fire/`, `terrain/`, `fields/`, or `acoustic/`, and those packages exist so the guard is not vacuous |
 | `test_fire_state_immutability.py` | `step()` returns a new `FireState`, original is unchanged |
 | `test_component_registry.py` | Every registered name resolves to a class that satisfies its Protocol |
+| `spark/atmosphere/test_atmospheric_absorption.py` ✅ | ISO 9613-1 against the published table at four temperature/humidity pairs |
+| `spark/inverse/test_single_source_estimator.py` ✅ | Noiseless synthetic sources recovered; error and ellipse grow with noise; bisector flagged |
  
 ---
  

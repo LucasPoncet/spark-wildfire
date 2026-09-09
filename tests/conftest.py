@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config.simulation_configuration import (
+from config.simulation_configuration import (
     BandConfiguration,
     DelayEstimationConfiguration,
     ForwardModelConfiguration,
@@ -13,8 +13,8 @@ from src.config.simulation_configuration import (
     WindowConfiguration,
     load_simulation_configuration,
 )
-from src.spark.atmosphere.atmospheric_conditions import AtmosphericConditions
-from src.utils.array_types import Float64Array
+from spark.atmosphere.atmospheric_conditions import AtmosphericConditions
+from utils.array_types import Float64Array
 
 CONFIGURATION_DIRECTORY: Path = Path(__file__).resolve().parents[1] / "configs"
 
@@ -25,17 +25,23 @@ def simulation_configuration() -> SimulationConfiguration:
 
 
 @pytest.fixture(scope="session")
-def atmosphere(simulation_configuration: SimulationConfiguration) -> AtmosphericConditions:
+def atmosphere(
+    simulation_configuration: SimulationConfiguration,
+) -> AtmosphericConditions:
     return simulation_configuration.atmosphere
 
 
 @pytest.fixture(scope="session")
-def geometry(simulation_configuration: SimulationConfiguration) -> GeometryConfiguration:
+def geometry(
+    simulation_configuration: SimulationConfiguration,
+) -> GeometryConfiguration:
     return simulation_configuration.geometry
 
 
 @pytest.fixture(scope="session")
-def forward_model(simulation_configuration: SimulationConfiguration) -> ForwardModelConfiguration:
+def forward_model(
+    simulation_configuration: SimulationConfiguration,
+) -> ForwardModelConfiguration:
     return simulation_configuration.forward_model
 
 
@@ -45,7 +51,9 @@ def reference_distance_m(forward_model: ForwardModelConfiguration) -> float:
 
 
 @pytest.fixture(scope="session")
-def localization(simulation_configuration: SimulationConfiguration) -> LocalizationConfiguration:
+def localization(
+    simulation_configuration: SimulationConfiguration,
+) -> LocalizationConfiguration:
     return simulation_configuration.localization
 
 
@@ -60,12 +68,16 @@ def window(localization: LocalizationConfiguration) -> WindowConfiguration:
 
 
 @pytest.fixture(scope="session")
-def delay_estimation(localization: LocalizationConfiguration) -> DelayEstimationConfiguration:
+def delay_estimation(
+    localization: LocalizationConfiguration,
+) -> DelayEstimationConfiguration:
     return localization.delay_estimation
 
 
 @pytest.fixture(scope="session")
-def triangulation(localization: LocalizationConfiguration) -> TriangulationConfiguration:
+def triangulation(
+    localization: LocalizationConfiguration,
+) -> TriangulationConfiguration:
     return localization.triangulation
 
 

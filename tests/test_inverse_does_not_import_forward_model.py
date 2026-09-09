@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 INVERSE_PACKAGE_PATH = Path(__file__).resolve().parents[1] / "src" / "spark" / "inverse"
-FORBIDDEN_PACKAGES = ("src.spark.fire", "src.spark.terrain", "src.spark.fields", "src.spark.acoustic")
+FORBIDDEN_PACKAGES = ("spark.fire", "spark.terrain", "spark.fields", "spark.acoustic")
 
 
 def collect_imported_modules(source_path: Path) -> set[str]:
@@ -18,8 +18,10 @@ def collect_imported_modules(source_path: Path) -> set[str]:
     return modules
 
 
-@pytest.mark.parametrize("source_path", sorted(INVERSE_PACKAGE_PATH.glob("*.py")), ids=lambda p: p.name)
-def test_inverse_never_imports_the_forward_simulation(source_path: Path) -> None:
+@pytest.mark.parametrize(
+    "source_path", sorted(INVERSE_PACKAGE_PATH.glob("*.py")), ids=lambda path: path.name
+)
+def test_inverse_never_imports_the_forward_model(source_path: Path) -> None:
     imported = collect_imported_modules(source_path)
     violations = sorted(
         module
@@ -28,6 +30,12 @@ def test_inverse_never_imports_the_forward_simulation(source_path: Path) -> None
         if module == forbidden or module.startswith(forbidden + ".")
     )
     assert violations == []
+
+
+def test_the_forbidden_packages_exist_so_the_guard_is_not_vacuous() -> None:
+    source_root = INVERSE_PACKAGE_PATH.parents[1]
+    for forbidden in FORBIDDEN_PACKAGES:
+        assert (source_root / Path(*forbidden.split("."))).is_dir()
 
 
 def test_the_inverse_package_is_not_empty() -> None:
