@@ -1,0 +1,7 @@
+[fire]
+fuel_preset_name = "pine_needle_litter"
+ignition_cell_x_fraction = 0.5
+ignition_cell_y_fraction = 0.5
+simulation_duration_s = 120.0
+time_step_safety_factor = 0.9
+emission_model = "front_only"

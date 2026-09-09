@@ -127,3 +127,7 @@ secrets/
 /graft/
 .claude
 .mcp.json
+
+.claude/
+graft/
+single_source_localization_plan.md

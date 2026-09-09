@@ -22,46 +22,63 @@ Audio preprocessing  →  Fire + acoustic simulation  →  Inverse estimation
 
 ```
 spark-wildfire/
-├── data/{raw,processed,manifests}/
+├── configs/                                    # every tunable value, nothing in the source
+│   ├── environment.toml                        # temperature, humidity, pressure
+│   ├── data.toml                               # recording path, segmentation, output
+│   ├── geometry.toml                           # domain, receivers, source scenarios
+│   ├── forward_model.toml                      # propagation reference, noise, seed
+│   └── localization.toml                       # bands, window, delay, triangulation
+├── data/{raw_recordings,processed_segments,split_manifests}/
 ├── scripts/
-│   ├── preprocess.py
-│   ├── simulate.py
-│   └── estimate.py
-├── src/spark/
-│   ├── fields/
-│   │   ├── base.py              # ScalarField, VectorField Protocols
-│   │   ├── uniform.py
-│   │   ├── dem.py
-│   │   ├── vegetation.py        # tree generation, density
-│   │   └── wind.py
-│   ├── terrain/
-│   │   ├── base.py              # Mesh Protocol
-│   │   ├── square.py
-│   │   └── triangular.py
-│   ├── fire/
-│   │   ├── base.py              # SpreadEngine Protocol, FireState
-│   │   ├── fuel.py              # FuelModel dataclass
-│   │   ├── ros.py               # pure functions: balbi2009, rothermel
-│   │   ├── life.py              # game of life
-│   │   ├── cellular.py          # Alexandridis CA
-│   │   └── physical.py          # ROS-driven ignition delay
-│   ├── acoustic/
-│   │   ├── base.py              # Channel Protocol
-│   │   ├── source.py            # FireState -> (positions, amplitudes)
-│   │   ├── exponential.py
-│   │   └── measured.py          # stub
-│   ├── inverse/
-│   │   ├── base.py              # Estimator Protocol
-│   │   ├── single.py
-│   │   └── multiple.py
-│   ├── audio/                   # segment, filter, normalize, manifest
-│   └── config/
-│       ├── schema.py            # dataclass configs per component
-│       └── registry.py          # name -> class lookup
+│   ├── run_audio_preprocessing.py
+│   ├── run_fire_simulation.py
+│   ├── run_kinematics_estimation.py
+│   └── run_single_source_localization.py
+├── src/
+│   ├── audio/                                  # signal operations, no physics
+│   │   ├── recording_segmenter.py
+│   │   ├── lowpass_filter.py
+│   │   ├── amplitude_normalizer.py
+│   │   ├── grouped_split_manifest.py
+│   │   ├── octave_band_filter.py               # ISO octave bands, zero-phase band-pass
+│   │   ├── band_level_meter.py                 # Hann window, windowed RMS level in dB
+│   │   └── signal_alignment.py                 # integer-sample shift, valid overlap
+│   ├── config/
+│   │   ├── simulation_configuration.py
+│   │   └── component_registry.py
+│   ├── spark/
+│   │   ├── fields/                             # ScalarField / VectorField Protocols
+│   │   ├── terrain/                            # Mesh Protocol, square and triangular
+│   │   ├── fire/                               # SpreadEngine Protocol, FireState, ROS
+│   │   ├── atmosphere/                         # shared, stateless air physics
+│   │   │   ├── atmospheric_conditions.py       # T / RH / P, speed of sound
+│   │   │   └── atmospheric_absorption.py       # ISO 9613-1 alpha(f)
+│   │   ├── acoustic/
+│   │   │   ├── channel_protocol.py
+│   │   │   ├── burning_cell_source_model.py
+│   │   │   ├── exponential_attenuation_channel.py
+│   │   │   ├── measured_impulse_response_channel.py
+│   │   │   ├── free_field_propagation.py       # applies the channel to a waveform
+│   │   │   └── receiver_noise.py
+│   │   └── inverse/
+│   │       ├── kinematics_estimator_protocol.py
+│   │       ├── time_difference_of_arrival.py   # GCC-PHAT + delay variance
+│   │       ├── band_level_difference.py        # per-band, per-window G
+│   │       ├── inverse_variance_fusion.py      # weighted mean, chi2_nu
+│   │       ├── level_ratio_triangulation.py    # G, D -> ranges -> position, covariance
+│   │       ├── single_source_estimator.py      # end-to-end driver
+│   │       └── multiple_source_estimator.py
+│   └── utils/
+│       ├── array_types.py
+│       ├── io/
+│       └── visualization/
 ├── results/{figures,metrics,simulations}/
 ├── tests/
 └── pyproject.toml
 ```
+
+Dependency direction: `audio/` and `atmosphere/` are leaves. `acoustic/` (forward) and `inverse/`
+(estimator) both sit above them and **never import each other** — see `Responsability_file.md`.
 
 ---
 
@@ -88,16 +105,46 @@ To run the test suite:
 uv run pytest
 ```
 
-### Development tooling
+### Single-source localization
 
-| Command | Purpose |
+Renders a 50 s fire recording through the forward channel to two microphones on the domain edge,
+then localizes the source from the two receiver signals alone, once per 5 s clip:
+
+```bash
+uv run python scripts/run_single_source_localization.py
+```
+
+The script takes no parameters of its own — everything comes from `configs/` (see below). To run a
+variant without touching the defaults, copy the directory and point at it:
+
+```bash
+uv run python scripts/run_single_source_localization.py --configs configs_noisy
+```
+
+Results are printed as a per-scenario table and written to `results/metrics/`. Read `chi2_nu` and
+the `SINGULAR` flag before trusting a row: `chi2_nu ≈ 1` means the bands agree, and `SINGULAR`
+means the source sits near the perpendicular bisector of the microphone baseline, where the two
+observables both go to zero and the range cannot be recovered at all.
+
+---
+
+## Configuration
+
+Every tunable value lives in `configs/`, never in the source. A run is fully described by the five
+files below, and `--configs <dir>` swaps the whole set.
+
+| File | Holds |
 |---|---|
-| `uv run ruff check .` | Lint: naming, import order, annotation coverage, docstring style, numpy idioms |
-| `uv run ruff format .` | Format |
-| `uv run mypy` | Strict static type check; enforces the `Protocol` contracts |
-| `uv run pytest --cov` | Tests with coverage |
+| `environment.toml` | Air temperature, relative humidity, pressure |
+| `data.toml` | Recording path, clip duration and overlap, metrics output path |
+| `geometry.toml` | Domain size, receiver positions, true source positions |
+| `forward_model.toml` | Reference distance, receiver-noise SNR and on/off, random seed |
+| `localization.toml` | Octave bands, analysis window, delay estimation, triangulation guards |
 
-`data/` and `results/` are excluded from every tool.
+What stays in the source as a named module-level constant is only what a run cannot change:
+published equation coefficients (the ISO 9613-1 relaxation terms, `20.05` in the speed of sound)
+and numerical guards (spectrum and power floors). Notation and values are indexed in
+`Notation.md`.
 
 ---
 
@@ -105,14 +152,19 @@ uv run pytest
 
 ### Audio preprocessing
 
-- [ ] Segment recordings into 5 s windows with configurable overlap
+- [x] Segment recordings into 5 s windows with configurable overlap
 - [ ] Low-pass filter, sample-rate verification across all sources
 - [ ] Normalization (scheme to be determined)
 - [ ] Explicit train/test manifest with group IDs derived from source recording, not filename
+- [x] Octave band-pass filterbank (125 Hz – 8 kHz), zero-phase
+- [x] Windowed band level meter and integer-sample channel alignment
 
 ### Acoustic channel
 
-- [ ] Exponential decay propagation model `p(r) = p₀ · exp(−αr)`
+- [ ] Exponential decay propagation model `p(r) = p₀ · exp(−αr)` as a gain matrix
+- [x] Waveform-level free-field propagation: delay, `1/r` spreading and ISO 9613-1 absorption
+- [x] ISO 9613-1 atmospheric absorption `α(f)` from scenario temperature, humidity and pressure
+- [x] Additive white receiver noise at a requested SNR
 
 ### Terrain and grid
 
@@ -134,7 +186,8 @@ uv run pytest
 
 ### Inverse problem
 
-- [ ] Single source: distance from attenuation function, triangulation across microphones
+- [x] Single source, two receivers: TDOA (GCC-PHAT), per-band level ratio, inverse-variance
+      fusion, triangulation and error ellipse — see `single_source_localization_plan.md`
 - [ ] Multiple sources: signal superposition, per-source separation and attribution
 - [ ] Dense array: automatic selection of highest-SNR receivers
 
