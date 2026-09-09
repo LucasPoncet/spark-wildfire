@@ -497,6 +497,12 @@ Used by both the estimator's window loop and the coherence measurement.
 
 Implemented for the forward render: `MeshConfiguration`, `WindConfiguration`, `FireSimulationConfiguration`, `ReceiverConfiguration` and `AcousticRenderingConfiguration`, one module each, grouped under `ForwardSimulationConfiguration`. Still planned: `FuelConfiguration` and `SpreadEngineConfiguration`, which today are a preset name and a hard-wired engine.
 
+**Three fuel fields are wired.** `uniform` puts the whole fuel bed load everywhere, which every
+rung of the ladder uses so that only geometry drives the received levels. `random_trees` scatters a
+homogeneous Poisson forest and `patchy_trees` thins it with Gaussian density bumps; both make the
+front visibly wander, which is what the live display is for, and both are reproducible from
+`tree_layout_seed`.
+
 `ForwardSimulationConfiguration` sits **alongside** `SimulationConfiguration`, not inside it. The two pipelines share only the air conditions, and folding the fire model into the object the estimator loads would put `fire/` one attribute away from the code that must never reach it.
 
 Implemented for the localization pipeline: `BandConfiguration`, `WindowConfiguration`, `DelayEstimationConfiguration`, `TriangulationConfiguration` (grouped under `LocalizationConfiguration`), plus `DataConfiguration`, `GeometryConfiguration`, `ForwardModelConfiguration` and the top-level `SimulationConfiguration`.

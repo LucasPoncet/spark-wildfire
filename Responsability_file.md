@@ -182,6 +182,8 @@ Sits at the repository root, outside `src/`, and **nothing in `src/` may import 
 | `run_loader.py` | Memoised loading and derived level traces | Decides anything scientific |
 | `export_controls.py` | One export control, shared by every panel | Chooses what a figure contains |
 | `scene_panel.py`, `physics_panel.py`, `channel_panel.py`, `estimate_panel.py`, `failure_modes_panel.py` | Widgets and one plotter call each | Holds physics |
+| `simulate_panel.py` | A fire built from widgets and animated in place. Assembles a configuration and hands it to the composition root | Constructs a mesh, an engine or a field |
+| `image_display.py` | Painting one RGB frame as a data URI, so rapid repaints do not race the media manager | Decides what is in the frame |
 | `live_mode.py` | Launches the rendering script as a guarded background subprocess | Renders in-process |
 
 The application is a run picker, parameter widgets, calls into `simulation_context_factory`

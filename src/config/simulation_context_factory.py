@@ -13,6 +13,9 @@ from src.config.component_registry import (
     CHANNEL_REGISTRY,
     EXPONENTIAL_ATTENUATION_CHANNEL,
     MESH_REGISTRY,
+    PATCHY_DENSITY_FIELD,
+    PATCHY_TREES_FIELD,
+    RANDOM_TREES_FIELD,
     SCALAR_FIELD_REGISTRY,
     SPREAD_ENGINE_REGISTRY,
     SQUARE_GRID_MESH,
@@ -36,24 +39,31 @@ CHANNEL_ANALYSIS_FREQUENCY_COUNT: int = 64
 CHANNEL_MINIMUM_FREQUENCY_HZ: float = 20.0
 
 
-def build_fuel(fuel_preset_name: str) -> FuelProperties:
-    """Look a fuel preset up by name.
+def build_fuel(
+    fuel_preset_name: str, moisture_content_fraction: float
+) -> FuelProperties:
+    """Look a fuel preset up by name and set its moisture.
 
     Args:
         fuel_preset_name: Key into the supported preset table.
+        moisture_content_fraction: Water carried by the fuel, as a fraction of
+            dry mass.
 
     Returns:
         The fuel bed.
 
     Raises:
-        ValueError: If the preset name is not supported.
+        ValueError: If the preset name is not supported, or the moisture is
+            negative.
     """
     if fuel_preset_name not in FUEL_PRESET_REGISTRY:
         supported = ", ".join(sorted(FUEL_PRESET_REGISTRY))
         raise ValueError(
             f"unknown fuel preset {fuel_preset_name!r}; registered: {supported}"
         )
-    return FUEL_PRESET_REGISTRY[fuel_preset_name]()
+    if moisture_content_fraction < 0.0:
+        raise ValueError("fuel moisture content must be non-negative")
+    return FUEL_PRESET_REGISTRY[fuel_preset_name](moisture_content_fraction)
 
 
 def build_mesh(config: ForwardSimulationConfiguration) -> MeshProtocol:
@@ -100,6 +110,81 @@ def build_scalar_field(field_type: str, constant_value: float) -> ScalarFieldPro
         field: ScalarFieldProtocol = field_class(constant_value)
         return field
     raise ValueError(f"no constructor wired for scalar field {field_type!r}")
+
+
+def build_fuel_field(
+    config: ForwardSimulationConfiguration, fuel: FuelProperties
+) -> ScalarFieldProtocol:
+    """Instantiate the fuel field the configuration names.
+
+    Three shapes are wired. `uniform` puts the whole fuel bed load everywhere,
+    which is what every scene in the ladder uses so that only geometry drives
+    the received levels. `random_trees` scatters a homogeneous Poisson forest,
+    and `patchy_trees` thins that forest with Gaussian density bumps — both
+    make the front visibly wander, which is what the live display is for.
+
+    Args:
+        config: Run configuration.
+        fuel: The fuel bed, supplying the uniform load.
+
+    Returns:
+        The field, behind its protocol.
+
+    Raises:
+        ValueError: If the field name is not registered or not wired.
+    """
+    field_type = config.fire.fuel_field_type
+    field_class = resolve_registered_name(
+        SCALAR_FIELD_REGISTRY, field_type, "scalar field"
+    )
+    if field_type == UNIFORM_SCALAR_FIELD:
+        return build_scalar_field(field_type, fuel.fuel_load_kg_per_m2)
+    if field_type not in (RANDOM_TREES_FIELD, PATCHY_TREES_FIELD):
+        raise ValueError(f"no constructor wired for fuel field {field_type!r}")
+
+    density_field = (
+        build_patch_density_field(config) if field_type == PATCHY_TREES_FIELD else None
+    )
+    field: ScalarFieldProtocol = field_class(
+        extent_x_m=config.mesh.extent_x_m,
+        extent_y_m=config.mesh.extent_y_m,
+        tree_density_per_m2=config.fire.tree_density_per_m2,
+        tree_fuel_load_kg_per_m2=config.fire.tree_fuel_load_kg_per_m2,
+        influence_radius_m=config.fire.tree_influence_radius_m,
+        seed=config.fire.tree_layout_seed,
+        density_field=density_field,
+    )
+    return field
+
+
+def build_patch_density_field(
+    config: ForwardSimulationConfiguration,
+) -> ScalarFieldProtocol:
+    """Instantiate the density field that thins a patchy tree layout.
+
+    Args:
+        config: Run configuration, carrying the patch centres and radius.
+
+    Returns:
+        The density field, behind its protocol.
+    """
+    patch_class = resolve_registered_name(
+        SCALAR_FIELD_REGISTRY, PATCHY_DENSITY_FIELD, "scalar field"
+    )
+    patch_centers_xy_m = np.array(
+        [
+            [x_fraction * config.mesh.extent_x_m, y_fraction * config.mesh.extent_y_m]
+            for x_fraction, y_fraction in config.fire.tree_patch_centers_xy_fraction
+        ],
+        dtype=np.float64,
+    )
+    density_field: ScalarFieldProtocol = patch_class(
+        patch_centers_xy=patch_centers_xy_m,
+        patch_peak_density_per_m2=config.fire.tree_density_per_m2,
+        patch_radius_m=config.fire.tree_patch_radius_fraction * config.mesh.extent_x_m,
+        background_density_per_m2=config.fire.tree_background_density_per_m2,
+    )
+    return density_field
 
 
 def build_wind_field(config: ForwardSimulationConfiguration) -> VectorFieldProtocol:
@@ -244,15 +329,15 @@ def build_simulation_context(
         ValueError: If any component name is unregistered or unwired.
     """
     mesh = build_mesh(config)
-    fuel = build_fuel(config.fire.fuel_preset_name)
+    fuel = build_fuel(
+        config.fire.fuel_preset_name, config.fire.fuel_moisture_content_fraction
+    )
     return SimulationContext(
         mesh=mesh,
         elevation_field=build_scalar_field(
             config.mesh.elevation_field_type, config.mesh.elevation_m
         ),
-        fuel_field=build_scalar_field(
-            config.fire.fuel_field_type, fuel.fuel_load_kg_per_m2
-        ),
+        fuel_field=build_fuel_field(config, fuel),
         wind_field=build_wind_field(config),
         spread_engine=build_spread_engine(config, fuel),
         channel=build_channel(config),

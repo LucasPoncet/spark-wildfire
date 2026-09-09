@@ -148,3 +148,16 @@ def ladder_scene_options() -> dict[str, Path]:
         experiment = load_configuration(str(directory)).experiment
         options[format_scene_label(experiment.name, experiment.title)] = directory
     return options
+
+
+def compute_equivalent_front_radius_m(run: SimulationRun) -> Float64Array:
+    """Radius of a disc with the same burnt area, per observation.
+
+    Args:
+        run: The saved run.
+
+    Returns:
+        Float64 array of shape (n_observations,), in metres.
+    """
+    burnt_area_m2 = read_ground_truth_series(run, "burnt_area_m2")
+    return np.asarray(np.sqrt(burnt_area_m2 / np.pi), dtype=np.float64)

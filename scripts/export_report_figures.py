@@ -177,6 +177,24 @@ def read_ground_truth_series(run: SimulationRun, field: str) -> Float64Array:
     )
 
 
+def compute_equivalent_front_radius_m(run: SimulationRun) -> Float64Array:
+    """Radius of a disc with the same burnt area, per observation.
+
+    Preferred over the mean front-cell radius for the rate-of-spread fit. The
+    burning set is one cell thick and sparse, so which cells happen to be
+    alight at a sampling instant wanders by metres; burnt area only ever grows,
+    and its equivalent radius is monotone by construction.
+
+    Args:
+        run: The saved run.
+
+    Returns:
+        Float64 array of shape (n_observations,), in metres.
+    """
+    burnt_area_m2 = read_ground_truth_series(run, "burnt_area_m2")
+    return np.asarray(np.sqrt(burnt_area_m2 / np.pi), dtype=np.float64)
+
+
 def replay_front_masks(
     config: ForwardSimulationConfiguration,
 ) -> tuple[SquareGridMesh, Any, list[BoolArray], list[float]]:
@@ -563,7 +581,7 @@ def main() -> list[Path]:
         save_figure(
             plot_front_position_over_observations(
                 run.observation_times_s,
-                read_ground_truth_series(run, "front_radius_m"),
+                compute_equivalent_front_radius_m(run),
                 None,
             ),
             experiment_directory,

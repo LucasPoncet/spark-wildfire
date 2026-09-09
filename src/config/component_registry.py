@@ -15,6 +15,7 @@ from src.spark.acoustic.exponential_attenuation_channel import (
     ExponentialAttenuationChannel,
 )
 from src.spark.fields.patchy_density_field import PatchyDensityField
+from src.spark.fields.random_tree_placement_field import RandomTreePlacementField
 from src.spark.fields.uniform_scalar_field import UniformScalarField
 from src.spark.fields.uniform_vector_field import UniformVectorField
 from src.spark.fire.cellular_automaton_spread_engine import (
@@ -32,6 +33,8 @@ EXPONENTIAL_ATTENUATION_CHANNEL: str = "exponential_attenuation"
 ATMOSPHERIC_ABSORPTION_CHANNEL: str = "atmospheric_absorption"
 UNIFORM_SCALAR_FIELD: str = "uniform"
 PATCHY_DENSITY_FIELD: str = "patchy"
+RANDOM_TREES_FIELD: str = "random_trees"
+PATCHY_TREES_FIELD: str = "patchy_trees"
 CONSTANT_WIND_FIELD: str = "constant"
 
 MESH_REGISTRY: dict[str, type[SquareGridMesh]] = {
@@ -52,6 +55,8 @@ CHANNEL_REGISTRY: dict[str, type] = {
 SCALAR_FIELD_REGISTRY: dict[str, type] = {
     UNIFORM_SCALAR_FIELD: UniformScalarField,
     PATCHY_DENSITY_FIELD: PatchyDensityField,
+    RANDOM_TREES_FIELD: RandomTreePlacementField,
+    PATCHY_TREES_FIELD: RandomTreePlacementField,
 }
 
 VECTOR_FIELD_REGISTRY: dict[str, type] = {

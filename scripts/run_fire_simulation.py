@@ -9,11 +9,10 @@ A window opens showing the grid. Click anywhere on it to start a fire at
 that cell; the simulation keeps advancing on its own from the moment the
 window opens.
 
-Zero domain logic lives here. The mesh, engine and wind come from
-`simulation_context_factory`, so `--configs` swaps the engine the same way it
-does for the rendering script. The patchy tree fuel is built here rather than
-by the factory because it is a display asset: it makes the front visibly
-wander, and no configuration section describes it yet.
+Zero domain logic lives here. Every component comes from
+`simulation_context_factory`, so `--configs` swaps the engine and the fuel the
+same way it does for the rendering script. Set `fuel_field_type` to
+`patchy_trees` in `fire.toml` for a forest the front visibly wanders through.
 
 The mesh is narrowed back to a concrete `SquareGridMesh` before display,
 because a raster image needs the row and column structure `MeshProtocol`
@@ -38,9 +37,6 @@ from src.config.simulation_configuration import (
 )
 from src.config.simulation_context import SimulationContext
 from src.config.simulation_context_factory import build_simulation_context
-from src.spark.fields.patchy_density_field import PatchyDensityField
-from src.spark.fields.random_tree_placement_field import RandomTreePlacementField
-from src.spark.fields.scalar_field_protocol import ScalarFieldProtocol
 from src.spark.fire.cellular_automaton_spread_engine import (
     FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION,
 )
@@ -48,19 +44,9 @@ from src.spark.terrain.square_grid_mesh import SquareGridMesh
 from src.utils.visualization.fire_state_plotter import render_fire_state_rgb_image
 
 ANIMATION_FRAME_INTERVAL_MS = 150
-TREE_DENSITY_PER_M2 = 0.1
-TREE_FUEL_LOAD_KG_PER_M2 = 0.25
-TREE_INFLUENCE_RADIUS_M = 2.5
-TREE_LAYOUT_SEED = 100
 CELLULAR_AUTOMATON_BURN_DURATION_S = 10.0
 RATE_OF_SPREAD_DEFAULT_TIME_STEP_S = 10.0
 CELLULAR_AUTOMATON_DEFAULT_TIME_STEP_S = 1.0
-
-TREE_BACKGROUND_DENSITY_PER_M2 = 0.01
-TREE_PATCH_CENTERS_FRACTION_XY = np.array(
-    [[0.25, 0.25], [0.70, 0.60], [0.40, 0.80]], dtype=np.float64
-)
-TREE_PATCH_RADIUS_FRACTION = 0.15
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -80,35 +66,6 @@ def parse_arguments() -> argparse.Namespace:
         "creeps at millimetres per second against the wind.",
     )
     return parser.parse_args()
-
-
-def build_tree_fuel_field(extent_x_m: float, extent_y_m: float) -> ScalarFieldProtocol:
-    """Build the patchy tree fuel the demo displays.
-
-    Args:
-        extent_x_m: Domain extent along x, in metres.
-        extent_y_m: Domain extent along y, in metres.
-
-    Returns:
-        The fuel field, behind its protocol.
-    """
-    density_field = PatchyDensityField(
-        patch_centers_xy=TREE_PATCH_CENTERS_FRACTION_XY
-        * np.array([extent_x_m, extent_y_m]),
-        patch_peak_density_per_m2=TREE_DENSITY_PER_M2,
-        patch_radius_m=TREE_PATCH_RADIUS_FRACTION * extent_x_m,
-        background_density_per_m2=TREE_BACKGROUND_DENSITY_PER_M2,
-    )
-    field: ScalarFieldProtocol = RandomTreePlacementField(
-        extent_x_m=extent_x_m,
-        extent_y_m=extent_y_m,
-        tree_density_per_m2=TREE_DENSITY_PER_M2,
-        tree_fuel_load_kg_per_m2=TREE_FUEL_LOAD_KG_PER_M2,
-        influence_radius_m=TREE_INFLUENCE_RADIUS_M,
-        seed=TREE_LAYOUT_SEED,
-        density_field=density_field,
-    )
-    return field
 
 
 def resolve_display_settings(
@@ -154,13 +111,14 @@ def main() -> None:
             f"{type(mesh).__name__} has no row and column structure"
         )
     engine = context.spread_engine
-    fuel_field = build_tree_fuel_field(config.mesh.extent_x_m, config.mesh.extent_y_m)
     fuel_density_fraction = np.clip(
-        fuel_field.sample(mesh.cell_positions_xyz), 0.0, 1.0
+        context.fuel_field.sample(mesh.cell_positions_xyz), 0.0, 1.0
     )
     cells_per_row = round(config.mesh.extent_x_m / config.mesh.cell_spacing_m) + 1
 
-    simulation = {"state": engine.initialize(mesh, fuel_field, context.wind_field)}
+    simulation = {
+        "state": engine.initialize(mesh, context.fuel_field, context.wind_field)
+    }
     simulation["state"] = engine.ignite_cells(
         simulation["state"], context.ignition_cell_indices
     )

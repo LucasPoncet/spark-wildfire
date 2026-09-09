@@ -10,8 +10,9 @@ buttons. Anything that cannot be expressed that way belongs in `src/`, and
 nothing in `src/` may import this package.
 
 The panels are ordered the way the defense should walk through them: what the
-scene is, what the fire does, what the channel does to it, what the estimator
-recovers, and where all of that stops working.
+scene is, what the fire does, a fire you build and run yourself, what the
+channel does to it, what the estimator recovers, and where all of that stops
+working. The last panel launches a full acoustic render in the background.
 """
 
 import streamlit as st
@@ -22,6 +23,7 @@ from app import (
     failure_modes_panel,
     physics_panel,
     scene_panel,
+    simulate_panel,
 )
 from app.live_mode import render_live_mode
 from app.run_loader import available_run_ids
@@ -29,10 +31,11 @@ from app.run_loader import available_run_ids
 PANEL_NAMES: tuple[str, ...] = (
     "Scene",
     "Physics",
+    "Simulate",
     "Channel and receivers",
     "Estimate",
     "Failure modes",
-    "Live run",
+    "Render a run",
 )
 
 
@@ -59,7 +62,9 @@ def main() -> None:
         scene_panel.render()
     elif panel_name == "Physics":
         physics_panel.render()
-    elif panel_name == "Live run":
+    elif panel_name == "Simulate":
+        simulate_panel.render()
+    elif panel_name == "Render a run":
         render_live_mode()
     elif not selected_run_id:
         st.info("this panel needs a saved run")

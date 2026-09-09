@@ -8,7 +8,7 @@ import numpy as np
 import streamlit as st
 
 from app.export_controls import render_figure_with_export
-from app.run_loader import load_run, read_ground_truth_series
+from app.run_loader import compute_equivalent_front_radius_m, load_run
 from src.utils.visualization.receiver_signal_plotter import (
     plot_estimates_against_truth,
     plot_front_position_over_observations,
@@ -55,10 +55,15 @@ def render(run_id: str) -> None:
 
     run = load_run(run_id)
     st.subheader("Front travel over the run (F9)")
+    st.caption(
+        "Travel is the radius of a disc with the same burnt area. The burning "
+        "band is one cell thick, so which cells are alight at a sampling instant "
+        "wanders by metres; burnt area only ever grows."
+    )
     render_figure_with_export(
         plot_front_position_over_observations(
             run.observation_times_s,
-            read_ground_truth_series(run, "front_radius_m"),
+            compute_equivalent_front_radius_m(run),
             None,
         ),
         "f9_front_position",

@@ -179,9 +179,28 @@ uv run --group app streamlit run app/main.py
 Then open <http://localhost:8501>. Add `--server.port 8600` to move it, or `--server.headless true`
 to stop it opening a browser.
 
-Five panels — scene, physics, channel and receivers, estimate, failure modes — over the same
-plotters the export script calls, so a figure in the demo and a figure in the report cannot differ.
-Live mode renders a new scene in the background; the demo should replay a saved run.
+Seven panels over the same plotters the export script calls, so a figure in the demo and a figure
+in the report cannot differ:
+
+| Panel | Shows |
+|---|---|
+| Scene | Geometry with the near-singular band shaded — where no estimator can work |
+| Physics | Rate of spread against wind, slope and moisture, and the front the model produces |
+| **Simulate** | **Build a fire from widgets and watch it burn, live** |
+| Channel and receivers | ISO 9613-1 absorption, per-band gain against range, received levels |
+| Estimate | Front travel against ground truth, estimates against truth with error ellipses |
+| Failure modes | Error against degeneracy, and the reduced χ² calibration problem |
+| Render a run | Launches a full acoustic render in the background |
+
+**The Simulate panel** is the live counterpart of `scripts/run_fire_simulation.py`. Pick the grid,
+the wind, the fuel field, the moisture, the engine and the ignition point, press **Build**, then
+**Play**. Buttons: Build rebuilds from the widgets, Play/Pause runs the animation, Step advances one
+frame, Reset clears it. "Light another fire" ignites a second point anywhere in the domain while it
+burns. The caption tracks time, burning cells, front cells, ignited cells and burnt area.
+
+Everything the widgets set is folded into a `ForwardSimulationConfiguration` and handed to
+`build_simulation_context`, so the panel constructs nothing itself — the same composition root the
+batch scripts use.
 
 **Where to change how it looks.** Three separate places, depending on what you want to change:
 
@@ -190,6 +209,8 @@ Live mode renders a new scene in the background; the demo should replay a saved 
 | Page title, wide/centred layout, panel order and names | `app/main.py` — `st.set_page_config` and `PANEL_NAMES` |
 | Theme: colours, fonts, light or dark | `.streamlit/config.toml`, `[theme]` section |
 | What is inside one panel: widgets, headings, captions | `app/<name>_panel.py` |
+| Animation speed and frame cap of the live simulation | `app/simulate_panel.py` — `FRAME_INTERVAL_S`, `MAXIMUM_FRAMES_PER_RUN` |
+| Fire colours in the live simulation | `src/utils/visualization/fire_state_plotter.py` |
 | How a figure itself looks: colours, axes, labels, sizes | `src/utils/visualization/*.py` — never in `app/` |
 
 The last row is the important one. A panel calls a plotter and shows what comes back, so changing a
@@ -223,7 +244,7 @@ configs/                 the shipped defaults
 | `localization.toml` | Octave bands, analysis window, delay estimation, triangulation guards |
 | `mesh.toml` | Domain extent, cell spacing, connectivity, mesh implementation |
 | `wind.toml` | Wind speed and bearing |
-| `fire.toml` | Fuel preset, spread engine, ignition points, run length, emission model |
+| `fire.toml` | Fuel preset and moisture, spread engine, fuel field, tree layout, ignition points, run length, emission model |
 | `receiver.toml` | Placement strategy and its parameters |
 | `acoustic_rendering.toml` | Sample rate, segment duration, observation interval, channel |
 
