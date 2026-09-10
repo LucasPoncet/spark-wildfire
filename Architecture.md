@@ -632,6 +632,39 @@ against the map median, when the peak lands within `minimum_source_separation_m`
 of an accepted source, when `maximum_source_count` is reached, or when peeling
 stops removing correlation energy — and it reports which.
 
+**Where the sequential loop actually stops, at ten sources and beyond.** On the
+`m4` ring at 20 dB, positions are exact whenever they are found and the whole
+score is cardinality:
+
+| K \ N | 15 | 20 | 25 |
+|---|---|---|---|
+| 10 | 10 of 10 | 10 of 10 | 10 of 10 |
+| 15 | 8 of 15 | 8 of 15 | 8 of 15 |
+| 20 | 6 of 20 | 5 of 20 | 6 of 20 |
+
+Two things are visible at once. **Receiver count buys nothing**: the rows are
+identical to three decimals across fifteen, twenty and twenty-five receivers, so
+whatever caps `K̂` is not the array. And **every cell of the grid stopped on
+`deflation_stopped_removing_energy`**, which names the cap.
+
+**`residual_power_reduction_threshold` is a fixed fraction, and a fixed fraction
+cannot scale with the source count.** Each source contributes roughly `1/K` of
+the correlation energy, so the drop one deflation produces shrinks as `K` grows
+until it falls under the threshold with sources still un-found. Measured on an
+earlier, wider-spread variant of this scene at `K = 15`, `N = 20`:
+
+| Threshold | 0.02 | 0.01 | 0.005 | 0.002 | 0.0005 |
+|---|---|---|---|---|---|
+| `K̂` of 15 | 5 | 14 | 22 | 22 | 22 |
+
+It is knife-edge: halving the threshold takes `K̂` from 5 to 14, halving it again
+overshoots to 22 with matched positions degrading as spurious sources crowd in.
+Neither the shipped value nor any single replacement is right, because the rule
+is the wrong shape. A rule scaled to the energy a single source is expected to
+carry, or an absolute prominence test on the residual map, would be the fix.
+That is a design change beyond the plan this work implements, and it is recorded
+here rather than made silently.
+
 **`minimum_source_separation_m` is a floor on what a scene may report, and it
 will be mistaken for a resolution limit if it is not set below the separations
 of interest.** Swept over two sources at 2, 4, 8 and 16 m with the shipped value
@@ -643,6 +676,12 @@ being measured was the configuration.
 
 Where the true limit lies is therefore still open: it is below one metre at
 20 dB in free field, and nothing here has found it.
+
+The same trap caught `m4` twice. Its first geometry spread the sources 7 m apart
+and shipped the 3 m guard; tightening the ring to 2.7 m spacing while dropping
+the guard to 1.5 m took `K̂` at twenty sources from 3 to 6, which reads as closer
+sources being easier and is nothing of the kind. **Set the guard from the
+scene's own closest pair, and say so in the configuration.**
 
 **A source's delays are read from its own neighbourhood of each curve,** not
 from each curve's global maximum, which in a mixture belongs to whichever source
@@ -1032,7 +1071,7 @@ Three new configuration blocks, all required, all present in every directory:
 | `m2` | Three equal sources, one recording provenance each, six receivers | The clean case: coherence 0.028, no power disparity, so `K = 3` is tested on its own |
 | `m3` | Six sources on a circle of radius 8 m, eight receivers | A burning contour rather than six fires. Excerpts are 5 s windows, which is what lets six decorrelate, and the deflation is the hard notch because a compact cluster needs it |
 | `e2` | Two sources, three receivers, 60 m domain | The ladder's own E2 scene, now readable by the multi-source pipeline. `N = 3` is the ambiguous baseline the plan says to report rather than hide |
-| `m4` | Up to twenty sources scattered through an annulus, fifteen to twenty-five receivers | A ragged front rather than a clean ring, and the scene the source-count and receiver-count sweep runs on |
+| `m4` | Up to twenty sources around a circle of radius 10 m, fifteen to twenty-five receivers | A compact ring, far tighter than `m3`: closest pair 4.1 m at ten sources and 2.7 m at twenty. The scene the source-count and receiver-count sweep runs on |
 | `audit_pool` | The whole pool, `distinct_provenance` | A scratch scene for Stage 0 only; it localizes nothing |
 
 `e2`'s geometry is taken from the rest of its own directory rather than invented:
