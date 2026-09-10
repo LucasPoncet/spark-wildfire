@@ -1,0 +1,63 @@
+{
+  "experiment": {
+    "name": "e2",
+    "title": "E2 \u2014 two static sources, three receivers",
+    "description": "Superposition without motion. Two non-spreading sources sound at once, so the receivers hear a sum the estimator was never told about."
+  },
+  "mesh": {
+    "extent_x_m": 60.0,
+    "extent_y_m": 60.0,
+    "cell_spacing_m": 0.5,
+    "use_diagonal_neighbors": true,
+    "mesh_type": "square_grid",
+    "elevation_field_type": "uniform",
+    "elevation_m": 0.0
+  },
+  "wind": {
+    "wind_speed_m_per_s": 2.0,
+    "wind_bearing_rad": 0.0,
+    "wind_field_type": "constant"
+  },
+  "fire": {
+    "fuel_preset_name": "pine_needle_litter",
+    "spread_engine_name": "static_source",
+    "fuel_field_type": "uniform",
+    "ignition_points_xy_fraction": [
+      [
+        0.15,
+        0.45
+      ],
+      [
+        0.85,
+        0.85
+      ]
+    ],
+    "simulation_duration_s": 300.0,
+    "time_step_safety_factor": 0.9,
+    "emission_model": "all_burning"
+  },
+  "receiver": {
+    "placement_strategy": "ring",
+    "receiver_count": 3,
+    "ring_radius_m": 22.0,
+    "ring_center_x_fraction": 0.5,
+    "ring_center_y_fraction": 0.5,
+    "grid_spacing_m": 10.0,
+    "random_radius_m": 22.0,
+    "random_seed": 0
+  },
+  "acoustic_rendering": {
+    "sample_rate_hz": 44100,
+    "segment_duration_s": 5.0,
+    "reference_distance_m": 1.0,
+    "source_signal_seed": 42,
+    "observation_interval_s": 60.0,
+    "channel_name": "exponential_attenuation",
+    "attenuation_coefficient_per_m": 0.005
+  },
+  "atmosphere": {
+    "air_temperature_celsius": 15.0,
+    "relative_humidity_percent": 70.0,
+    "pressure_kpa": 101.325
+  }
+}

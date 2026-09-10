@@ -1,0 +1,117 @@
+{
+  "generated_at_utc": "2026-09-09T12:04:58+00:00",
+  "generated_by": "scripts/export_report_figures.py",
+  "figures": [
+    "f3_front_evolution.gif",
+    "f3_front_evolution.svg",
+    "f4_channel.svg",
+    "f5_receiver_levels.svg",
+    "f9_front_position.svg"
+  ],
+  "scope": "experiment",
+  "experiment": {
+    "name": "e3",
+    "title": "E3 \u2014 one spreading front, receiver ring",
+    "description": "A distributed, moving source. The front is hundreds of cells wide by the end of the run, and a rate of spread becomes estimable from its travel."
+  },
+  "run_id": "e3/20260909T113842Z",
+  "run_directory": "results/simulations/e3/20260909T113842Z",
+  "run_metadata": {
+    "experiment_name": "e3",
+    "experiment_title": "E3 \u2014 one spreading front, receiver ring",
+    "configuration_directory": "configs\\e3",
+    "time_step_s": 18.0,
+    "observation_interval_s": 60.0,
+    "observation_count": 30,
+    "sample_rate_hz": 44100,
+    "receiver_count": 8,
+    "spread_engine_name": "rate_of_spread",
+    "emission_model": "front_only",
+    "ignition_positions_xy_m": [
+      [
+        30.0,
+        30.0
+      ]
+    ]
+  },
+  "configuration": {
+    "experiment": {
+      "name": "e3",
+      "title": "E3 \u2014 one spreading front, receiver ring",
+      "description": "A distributed, moving source. The front is hundreds of cells wide by the end of the run, and a rate of spread becomes estimable from its travel."
+    },
+    "mesh": {
+      "extent_x_m": 100.0,
+      "extent_y_m": 100.0,
+      "cell_spacing_m": 0.5,
+      "use_diagonal_neighbors": true,
+      "mesh_type": "square_grid",
+      "elevation_field_type": "uniform",
+      "elevation_m": 0.0
+    },
+    "wind": {
+      "wind_speed_m_per_s": 2.0,
+      "wind_bearing_rad": 0.0,
+      "wind_field_type": "constant"
+    },
+    "fire": {
+      "fuel_preset_name": "pine_needle_litter",
+      "spread_engine_name": "rate_of_spread",
+      "fuel_field_type": "uniform",
+      "ignition_points_xy_fraction": [
+        [
+          0.3,
+          0.3
+        ]
+      ],
+      "simulation_duration_s": 1800.0,
+      "time_step_safety_factor": 0.9,
+      "emission_model": "front_only",
+      "fuel_moisture_content_fraction": 0.1,
+      "tree_density_per_m2": 0.1,
+      "tree_fuel_load_kg_per_m2": 0.25,
+      "tree_influence_radius_m": 2.5,
+      "tree_layout_seed": 100,
+      "tree_patch_centers_xy_fraction": [
+        [
+          0.25,
+          0.25
+        ],
+        [
+          0.7,
+          0.6
+        ],
+        [
+          0.4,
+          0.8
+        ]
+      ],
+      "tree_patch_radius_fraction": 0.15,
+      "tree_background_density_per_m2": 0.01
+    },
+    "receiver": {
+      "placement_strategy": "ring",
+      "receiver_count": 8,
+      "ring_radius_m": 40.0,
+      "ring_center_x_fraction": 0.5,
+      "ring_center_y_fraction": 0.5,
+      "grid_spacing_m": 10.0,
+      "random_radius_m": 40.0,
+      "random_seed": 0
+    },
+    "acoustic_rendering": {
+      "sample_rate_hz": 44100,
+      "segment_duration_s": 5.0,
+      "reference_distance_m": 1.0,
+      "source_signal_seed": 42,
+      "observation_interval_s": 60.0,
+      "channel_name": "exponential_attenuation",
+      "attenuation_coefficient_per_m": 0.005
+    },
+    "atmosphere": {
+      "air_temperature_celsius": 15.0,
+      "relative_humidity_percent": 70.0,
+      "pressure_kpa": 101.325
+    }
+  }
+}

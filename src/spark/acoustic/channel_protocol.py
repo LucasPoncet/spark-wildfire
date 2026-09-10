@@ -1,8 +1,9 @@
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from src.utils.array_types import Float64Array
 
 
+@runtime_checkable
 class ChannelProtocol(Protocol):
     """Propagation channel between source positions and receiver positions."""
 

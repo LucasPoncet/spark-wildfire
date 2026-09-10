@@ -1,0 +1,127 @@
+[
+  {
+    "simulation_time_s": 54.0,
+    "component_count": 2,
+    "component_centroids_xy_m": [
+      [
+        9.0,
+        27.0
+      ],
+      [
+        51.0,
+        51.0
+      ]
+    ],
+    "front_centroid_xy_m": [
+      30.0,
+      39.0
+    ],
+    "front_radius_m": 0.0,
+    "front_cell_count": 2,
+    "burning_cell_count": 2,
+    "ignited_cell_count": 2,
+    "burnt_area_m2": 0.5,
+    "source_count": 2,
+    "receiver_range_spread_m": 15.23066887368342
+  },
+  {
+    "simulation_time_s": 108.0,
+    "component_count": 2,
+    "component_centroids_xy_m": [
+      [
+        9.0,
+        27.0
+      ],
+      [
+        51.0,
+        51.0
+      ]
+    ],
+    "front_centroid_xy_m": [
+      30.0,
+      39.0
+    ],
+    "front_radius_m": 0.0,
+    "front_cell_count": 2,
+    "burning_cell_count": 2,
+    "ignited_cell_count": 2,
+    "burnt_area_m2": 0.5,
+    "source_count": 2,
+    "receiver_range_spread_m": 15.23066887368342
+  },
+  {
+    "simulation_time_s": 162.0,
+    "component_count": 2,
+    "component_centroids_xy_m": [
+      [
+        9.0,
+        27.0
+      ],
+      [
+        51.0,
+        51.0
+      ]
+    ],
+    "front_centroid_xy_m": [
+      30.0,
+      39.0
+    ],
+    "front_radius_m": 0.0,
+    "front_cell_count": 2,
+    "burning_cell_count": 2,
+    "ignited_cell_count": 2,
+    "burnt_area_m2": 0.5,
+    "source_count": 2,
+    "receiver_range_spread_m": 15.23066887368342
+  },
+  {
+    "simulation_time_s": 216.0,
+    "component_count": 2,
+    "component_centroids_xy_m": [
+      [
+        9.0,
+        27.0
+      ],
+      [
+        51.0,
+        51.0
+      ]
+    ],
+    "front_centroid_xy_m": [
+      30.0,
+      39.0
+    ],
+    "front_radius_m": 0.0,
+    "front_cell_count": 2,
+    "burning_cell_count": 2,
+    "ignited_cell_count": 2,
+    "burnt_area_m2": 0.5,
+    "source_count": 2,
+    "receiver_range_spread_m": 15.23066887368342
+  },
+  {
+    "simulation_time_s": 270.0,
+    "component_count": 2,
+    "component_centroids_xy_m": [
+      [
+        9.0,
+        27.0
+      ],
+      [
+        51.0,
+        51.0
+      ]
+    ],
+    "front_centroid_xy_m": [
+      30.0,
+      39.0
+    ],
+    "front_radius_m": 0.0,
+    "front_cell_count": 2,
+    "burning_cell_count": 2,
+    "ignited_cell_count": 2,
+    "burnt_area_m2": 0.5,
+    "source_count": 2,
+    "receiver_range_spread_m": 15.23066887368342
+  }
+]

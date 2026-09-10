@@ -13,6 +13,7 @@ from src.spark.fire.fire_state import FireState
 from src.spark.fire.fuel_properties import FuelProperties
 from src.spark.fire.rate_of_spread_engine import RateOfSpreadEngine
 from src.spark.fire.spread_engine_protocol import SpreadEngineProtocol
+from src.spark.fire.static_source_spread_engine import StaticSourceSpreadEngine
 from src.spark.terrain.square_grid_mesh import SquareGridMesh
 
 WIND_SPEED_M_PER_S = 3.0
@@ -30,9 +31,18 @@ def build_rate_of_spread() -> SpreadEngineProtocol:
     return RateOfSpreadEngine(FuelProperties.pine_needle_litter())
 
 
-ENGINE_CASES = [
+def build_static_source() -> SpreadEngineProtocol:
+    return StaticSourceSpreadEngine()
+
+
+SPREADING_ENGINE_CASES = [
     pytest.param(build_cellular_automaton, 1.0, 8, id="cellular-automaton"),
     pytest.param(build_rate_of_spread, 2.0, 60, id="rate-of-spread"),
+]
+
+ENGINE_CASES = [
+    *SPREADING_ENGINE_CASES,
+    pytest.param(build_static_source, 5.0, 20, id="static-source"),
 ]
 
 
@@ -81,10 +91,10 @@ def test_engine_runs_a_fire_through_protocol_calls_only(
         state = engine.step(state, dt=dt)
 
     assert state.current_time_s == pytest.approx(dt * step_count)
-    assert state.has_ignited.sum() > 1
+    assert state.has_ignited.sum() >= 1
 
 
-@pytest.mark.parametrize(("build_engine", "dt", "step_count"), ENGINE_CASES)
+@pytest.mark.parametrize(("build_engine", "dt", "step_count"), SPREADING_ENGINE_CASES)
 def test_engine_spreads_downwind_further_than_upwind(
     build_engine: Callable[[], SpreadEngineProtocol], dt: float, step_count: int
 ) -> None:
@@ -94,7 +104,7 @@ def test_engine_spreads_downwind_further_than_upwind(
     assert burnt_x_m.max() - center_x_m > center_x_m - burnt_x_m.min()
 
 
-@pytest.mark.parametrize(("build_engine", "dt", "step_count"), ENGINE_CASES)
+@pytest.mark.parametrize(("build_engine", "dt", "step_count"), SPREADING_ENGINE_CASES)
 def test_engine_leaves_part_of_the_grid_unburnt_at_this_timescale(
     build_engine: Callable[[], SpreadEngineProtocol], dt: float, step_count: int
 ) -> None:
@@ -120,3 +130,16 @@ def test_engine_never_reignites_a_burnt_cell(
         state = engine.step(state, dt=dt)
         assert np.all(state.has_ignited >= previous_has_ignited)
         previous_has_ignited = state.has_ignited
+
+
+@pytest.mark.parametrize(("build_engine", "dt", "step_count"), SPREADING_ENGINE_CASES)
+def test_a_spreading_engine_lights_more_than_the_ignition_cell(
+    build_engine: Callable[[], SpreadEngineProtocol], dt: float, step_count: int
+) -> None:
+    _, _, state = run_from_center(build_engine(), dt, step_count)
+    assert state.has_ignited.sum() > 1
+
+
+def test_the_static_engine_lights_only_the_ignition_cell() -> None:
+    _, _, state = run_from_center(build_static_source(), 5.0, 20)
+    assert state.has_ignited.sum() == 1

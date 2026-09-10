@@ -1,0 +1,4 @@
+[experiment]
+name = "e1"
+title = "E1 — one static source, two receivers"
+description = "Baseline identifiability. One non-spreading source and two microphones: the simplest scene in which a position can be recovered at all."

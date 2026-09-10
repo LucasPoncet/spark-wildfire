@@ -12,10 +12,12 @@ class WindConfiguration:
         wind_speed_m_per_s: Wind speed, in metres per second.
         wind_bearing_rad: Direction the wind blows towards, in radians,
             counter-clockwise from the positive x-axis.
+        wind_field_type: Registered name of the vector field carrying wind.
     """
 
     wind_speed_m_per_s: float = 2.0
     wind_bearing_rad: float = 0.0
+    wind_field_type: str = "constant"
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -35,6 +37,7 @@ class WindConfiguration:
             wind_bearing_rad=float(
                 data.get("wind_bearing_rad", defaults.wind_bearing_rad)
             ),
+            wind_field_type=str(data.get("wind_field_type", defaults.wind_field_type)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -46,4 +49,5 @@ class WindConfiguration:
         return {
             "wind_speed_m_per_s": self.wind_speed_m_per_s,
             "wind_bearing_rad": self.wind_bearing_rad,
+            "wind_field_type": self.wind_field_type,
         }

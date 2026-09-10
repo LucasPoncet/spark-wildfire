@@ -103,6 +103,32 @@ Where each published equation is implemented.
 
 ---
 
+## Fire front as a source
+
+Introduced by the front source model and the run directory. No published symbol; these are
+repository names.
+
+| Symbol | Code name | Unit |
+|---|---|---|
+| — | `is_on_front` | — |
+| — | `component_labels` | — |
+| — | `component_centroids_xy_m` | m |
+| — | `front_centroid_xy_m` | m |
+| — | `front_radius_m` | m |
+| — | `front_cell_count` | — |
+| — | `burnt_area_m2` | m² |
+| — | `receiver_range_spread_m` | m |
+| — | `mass_loss_rate_kg_per_m2_s` | kg m⁻² s⁻¹ |
+| — | `observation_interval_s` | s |
+| — | `observation_stride` | — |
+| — | `time_step_safety_factor` | — |
+
+`front_radius_m` is the mean distance from each front cell to its nearest ignition point. It is the
+travelled distance a rate-of-spread fit is made against, and unlike any one component's centroid it
+grows monotonically while the fire spreads.
+
+---
+
 ## Acoustic
 
 | Symbol | Code name | Unit |
@@ -114,6 +140,12 @@ Where each published equation is implemented.
 | `θ` | `front_bearing_rad` | rad |
 | — | `gain_matrix_source_by_receiver` | — |
 | — | `receiver_signal_levels` | — |
+| — | `receiver_positions_xy_m` | m |
+| — | `source_positions_xy_m` | m |
+| — | `source_amplitudes` | — |
+| — | `reference_distance_m` | m |
+| — | `segment_duration_s` | s |
+| — | `sample_rate_hz` | Hz |
 
 ---
 

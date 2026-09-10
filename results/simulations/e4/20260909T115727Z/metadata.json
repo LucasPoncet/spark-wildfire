@@ -1,0 +1,22 @@
+{
+  "experiment_name": "e4",
+  "experiment_title": "E4 \u2014 two spreading fronts, receiver ring",
+  "configuration_directory": "configs\\e4",
+  "time_step_s": 18.0,
+  "observation_interval_s": 60.0,
+  "observation_count": 30,
+  "sample_rate_hz": 44100,
+  "receiver_count": 8,
+  "spread_engine_name": "rate_of_spread",
+  "emission_model": "front_only",
+  "ignition_positions_xy_m": [
+    [
+      25.0,
+      30.0
+    ],
+    [
+      70.0,
+      65.0
+    ]
+  ]
+}

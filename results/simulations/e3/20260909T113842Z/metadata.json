@@ -1,0 +1,18 @@
+{
+  "experiment_name": "e3",
+  "experiment_title": "E3 \u2014 one spreading front, receiver ring",
+  "configuration_directory": "configs\\e3",
+  "time_step_s": 18.0,
+  "observation_interval_s": 60.0,
+  "observation_count": 30,
+  "sample_rate_hz": 44100,
+  "receiver_count": 8,
+  "spread_engine_name": "rate_of_spread",
+  "emission_model": "front_only",
+  "ignition_positions_xy_m": [
+    [
+      30.0,
+      30.0
+    ]
+  ]
+}

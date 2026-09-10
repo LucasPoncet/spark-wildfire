@@ -1,0 +1,4 @@
+[experiment]
+name = "e2"
+title = "E2 — two static sources, three receivers"
+description = "Superposition without motion. Two non-spreading sources sound at once, so the receivers hear a sum the estimator was never told about."

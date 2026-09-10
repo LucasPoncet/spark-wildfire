@@ -28,6 +28,9 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.16.6",
 ]
+app = [
+    "streamlit>=1.42.0",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -54,6 +57,7 @@ select = [
     "PT",
     "NPY",
     "RUF",
+    "D",
 ]
 ignore = ["D100", "D104"]
 
@@ -68,13 +72,13 @@ convention = "google"
 
 [tool.mypy]
 python_version = "3.13"
-files = ["src", "tests", "scripts", "main.py"]
+files = ["src", "tests", "scripts", "app", "main.py"]
 strict = true
 warn_unreachable = true
 pretty = true
 
 [[tool.mypy.overrides]]
-module = ["scipy.*", "soundfile.*"]
+module = ["scipy.*", "soundfile.*", "streamlit.*"]
 ignore_missing_imports = true
 
 [tool.coverage.run]

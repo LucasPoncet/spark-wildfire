@@ -1,0 +1,53 @@
+{
+  "generated_at_utc": "2026-09-09T12:05:00+00:00",
+  "generated_by": "scripts/export_report_figures.py",
+  "figures": [
+    "f6_estimates_scenario_1.svg",
+    "f6_estimates_scenario_2.svg",
+    "f6_estimates_scenario_3.svg",
+    "f6_estimates_scenario_4.svg",
+    "f6_estimates_scenario_5.svg",
+    "f7_error_against_bisector_distance.svg",
+    "f8_reduced_chi_square.svg"
+  ],
+  "scope": "metrics",
+  "note": "Estimator figures. These come from a localization metrics document, not from the forward run above.",
+  "metrics_path": "results/metrics/single_source_localization.json",
+  "metrics_settings": {
+    "air_temperature_celsius": 15.0,
+    "band_center_frequencies_hz": [
+      125.0,
+      250.0,
+      500.0,
+      1000.0,
+      2000.0,
+      4000.0,
+      8000.0
+    ],
+    "clip_count": 10,
+    "clip_duration_s": 5.0,
+    "configuration_directory": "configs",
+    "domain_size_xy_m": [
+      100.0,
+      100.0
+    ],
+    "pressure_kpa": 101.325,
+    "random_seed": 0,
+    "receiver_positions_xy_m": [
+      [
+        30.0,
+        0.0
+      ],
+      [
+        70.0,
+        0.0
+      ]
+    ],
+    "recording": "data\\raw_recordings\\kaggle\\videoplayback_01.wav",
+    "relative_humidity_percent": 70.0,
+    "sample_rate_hz": 44100,
+    "signal_to_noise_ratio_db": null,
+    "window_duration_s": 0.5,
+    "window_overlap_fraction": 0.5
+  }
+}

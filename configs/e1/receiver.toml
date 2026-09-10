@@ -1,0 +1,9 @@
+[receiver]
+placement_strategy = "ring"
+receiver_count = 2
+ring_radius_m = 20.0
+ring_center_x_fraction = 0.5
+ring_center_y_fraction = 0.5
+grid_spacing_m = 10.0
+random_radius_m = 20.0
+random_seed = 0

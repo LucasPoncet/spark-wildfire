@@ -1,0 +1,16 @@
+{
+  "generated_at_utc": "2026-09-09T12:04:53+00:00",
+  "generated_by": "scripts/export_report_figures.py",
+  "figures": [
+    "f1_rate_of_spread.svg",
+    "f2_scene_geometry.svg"
+  ],
+  "scope": "general",
+  "note": "Figures that depend on no single scene: the fire model itself, and every rung of the ladder side by side.",
+  "ladder_directories": [
+    "configs\\e1",
+    "configs\\e2",
+    "configs\\e3",
+    "configs\\e4"
+  ]
+}

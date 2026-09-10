@@ -1,0 +1,8 @@
+[acoustic_rendering]
+sample_rate_hz = 44100
+segment_duration_s = 5.0
+reference_distance_m = 1.0
+source_signal_seed = 42
+observation_interval_s = 60.0
+channel_name = "exponential_attenuation"
+attenuation_coefficient_per_m = 0.005
