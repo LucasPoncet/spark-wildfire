@@ -5,3 +5,5 @@ ignition_cell_y_fraction = 0.3
 simulation_duration_s = 1800.0
 time_step_safety_factor = 0.9
 emission_model = "front_only"
+fuel_field_type = "patchy_trees"
+spread_engine_name = "rate_of_spread"

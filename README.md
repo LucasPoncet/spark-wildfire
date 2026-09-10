@@ -193,10 +193,18 @@ in the report cannot differ:
 | Render a run | Launches a full acoustic render in the background |
 
 **The Simulate panel** is the live counterpart of `scripts/run_fire_simulation.py`. Pick the grid,
-the wind, the fuel field, the moisture, the engine and the ignition point, press **Build**, then
-**Play**. Buttons: Build rebuilds from the widgets, Play/Pause runs the animation, Step advances one
-frame, Reset clears it. "Light another fire" ignites a second point anywhere in the domain while it
-burns. The caption tracks time, burning cells, front cells, ignited cells and burnt area.
+the wind, the fuel field, the moisture, the engine and the ignition point, then press **Build and
+run** — it starts animating immediately, and keeps going until the fire is out or you pause it.
+Buttons: Build and run rebuilds from the widgets, Play/Pause, Step advances one frame, Reset clears
+it. "Light another fire" ignites a second point anywhere in the domain while it burns. The caption
+tracks time, burning cells, front cells, ignited cells and burnt area, and says so when a frame has
+nothing alight.
+
+**The timestep slider is capped at the CFL limit** computed by
+`src/spark/fire/time_step_calculator.py` for the parameters you picked, and defaults to it. That is
+the largest step which still resolves the front cell by cell: past it the front skips cells and the
+shape starts depending on the timestep instead of on the physics. The caption reports the limit and
+how many simulated seconds pass per real second at the current setting.
 
 Everything the widgets set is folded into a `ForwardSimulationConfiguration` and handed to
 `build_simulation_context`, so the panel constructs nothing itself — the same composition root the
