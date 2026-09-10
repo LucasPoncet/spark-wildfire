@@ -136,25 +136,3 @@ def apply_filter_to_paths(
         )
         for path in paths
     ]
-
-# import os
-
-# # Specify the folder path
-# folder_path = 'data/raw_recordings/fsc22/ESC-50-master/ESC-50-master/audio/'
-
-# # Get all file names in the folder
-# file_names = os.listdir(folder_path)
-
-# path_list = [folder_path + file for file in file_names][0:2]
-# print(path_list)
-# # Print the file names
-# # discret_FFT(path= path_list)
-# # test = (apply_low_pass_filter_to_paths(paths= path_list, filter_frequency= 1000))
-
-# # test1 = discret_FFT(path_list[0])
-# # plt.plot(test1[2], test1[0])
-# plt.show()
-# for i,liste in enumerate(test):
-#     plt.plot(range(len(liste)), liste)
-#     plt.plot(range(len(liste)), librosa.load(path_list[i], sr = None)[0], alpha = 0.5)
-#     plt.show()
