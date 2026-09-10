@@ -12,6 +12,20 @@ from src.config.receiver_configuration import (
     RING_PLACEMENT,
     ReceiverConfiguration,
 )
+from src.config.receiver_layout_configuration import (
+    EXPLICIT_LAYOUT,
+    GRID_LAYOUT,
+    RANDOM_LAYOUT,
+    RING_LAYOUT,
+    ReceiverLayoutConfiguration,
+)
+from src.spark.acoustic.receiver_layout import (
+    build_grid_receiver_positions_xyz,
+    build_random_receiver_positions_xyz,
+    build_ring_receiver_positions_xyz,
+    lift_positions_to_height_xyz,
+    validate_receiver_layout,
+)
 from src.utils.array_types import Float64Array
 
 REJECTION_SAMPLING_BATCH_FACTOR: int = 4
@@ -165,4 +179,69 @@ def place_receivers_from_configuration(
         )
     raise ValueError(
         f"unknown receiver placement strategy: {config.placement_strategy}"
+    )
+
+
+def place_receivers_from_layout(
+    layout: ReceiverLayoutConfiguration,
+    domain_extent_x_m: float,
+    domain_extent_y_m: float,
+) -> Float64Array:
+    """Build the N-receiver layout the configuration names, then guard it.
+
+    The three-dimensional counterpart of `place_receivers_from_configuration`,
+    used by the multi-source pipeline. Every layout, the explicit one included,
+    is checked for crowding and collinearity before it is returned.
+
+    Args:
+        layout: Layout strategy and its parameters.
+        domain_extent_x_m: Domain extent along x, in metres.
+        domain_extent_y_m: Domain extent along y, in metres.
+
+    Returns:
+        Float64 array of shape (n_receivers, 3).
+
+    Raises:
+        ValueError: If the layout is not recognised, or fails a guard.
+    """
+    center_x_m = layout.center_x_fraction * domain_extent_x_m
+    center_y_m = layout.center_y_fraction * domain_extent_y_m
+
+    if layout.layout == EXPLICIT_LAYOUT:
+        positions_xyz_m = lift_positions_to_height_xyz(
+            layout.explicit_positions_xy_m, layout.height_m
+        )
+    elif layout.layout == RING_LAYOUT:
+        positions_xyz_m = build_ring_receiver_positions_xyz(
+            center_x_m,
+            center_y_m,
+            layout.ring_radius_m,
+            layout.count,
+            layout.ring_start_bearing_rad,
+            layout.height_m,
+        )
+    elif layout.layout == GRID_LAYOUT:
+        positions_xyz_m = build_grid_receiver_positions_xyz(
+            0.0,
+            0.0,
+            domain_extent_x_m,
+            domain_extent_y_m,
+            layout.grid_spacing_m,
+            layout.height_m,
+        )
+    elif layout.layout == RANDOM_LAYOUT:
+        positions_xyz_m = build_random_receiver_positions_xyz(
+            center_x_m,
+            center_y_m,
+            layout.random_radius_m,
+            layout.count,
+            layout.minimum_separation_m,
+            layout.height_m,
+            layout.random_seed,
+        )
+    else:
+        raise ValueError(f"unknown receiver layout: {layout.layout}")
+
+    return validate_receiver_layout(
+        positions_xyz_m, layout.minimum_separation_m, layout.maximum_collinearity
     )

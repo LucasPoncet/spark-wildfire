@@ -8,6 +8,7 @@ from src.audio.octave_band_filter import (
 from src.config.simulation_configuration import BandConfiguration
 from src.spark.acoustic.free_field_propagation import (
     apply_free_field_propagation,
+    render_multi_source_receiver_signals,
     render_receiver_signals,
 )
 from src.spark.acoustic.receiver_noise import add_white_noise_at_snr_db
@@ -195,3 +196,147 @@ def test_added_noise_reaches_the_requested_signal_to_noise_ratio(
         np.mean(signal**2) / np.mean((noisy - signal) ** 2)
     )
     assert measured_snr_db == pytest.approx(20.0, abs=0.5)
+
+
+MULTI_SOURCE_RECEIVERS_XYZ_M = np.array(
+    [[10.0, 0.0, 1.5], [90.0, 0.0, 1.5], [50.0, 80.0, 1.5]]
+)
+MULTI_SOURCE_HEIGHT_M: float = 0.5
+
+
+def test_a_single_source_render_matches_the_two_dimensional_path(
+    atmosphere: AtmosphericConditions, sample_rate_hz: int, reference_distance_m: float
+) -> None:
+    """The multi-source render is the one-source case of the same operator."""
+    source_signal = np.random.default_rng(0).standard_normal(sample_rate_hz // 2)
+    receivers_xy_m = MULTI_SOURCE_RECEIVERS_XYZ_M[:, :2]
+    source_position_xy_m = np.array([30.0, 40.0])
+
+    flat = render_receiver_signals(
+        source_signal,
+        sample_rate_hz,
+        source_position_xy_m,
+        receivers_xy_m,
+        atmosphere,
+        reference_distance_m,
+    )
+    lifted = render_multi_source_receiver_signals(
+        [source_signal],
+        np.array([[*source_position_xy_m, 0.0]]),
+        np.array([1.0]),
+        np.column_stack((receivers_xy_m, np.zeros(receivers_xy_m.shape[0]))),
+        sample_rate_hz,
+        atmosphere,
+        reference_distance_m,
+    )
+    assert lifted.shape == flat.shape
+    assert np.allclose(lifted, flat, atol=1e-12)
+
+
+def test_two_sources_equal_the_sum_of_two_single_renders(
+    atmosphere: AtmosphericConditions, sample_rate_hz: int, reference_distance_m: float
+) -> None:
+    generator = np.random.default_rng(1)
+    source_signals = [
+        generator.standard_normal(sample_rate_hz // 2),
+        generator.standard_normal(sample_rate_hz // 2),
+    ]
+    source_positions_xyz_m = np.array(
+        [[30.0, 40.0, MULTI_SOURCE_HEIGHT_M], [70.0, 65.0, MULTI_SOURCE_HEIGHT_M]]
+    )
+    amplitude_scales = np.array([1.0, 0.5])
+
+    together = render_multi_source_receiver_signals(
+        source_signals,
+        source_positions_xyz_m,
+        amplitude_scales,
+        MULTI_SOURCE_RECEIVERS_XYZ_M,
+        sample_rate_hz,
+        atmosphere,
+        reference_distance_m,
+    )
+    separately = [
+        render_multi_source_receiver_signals(
+            [source_signals[index]],
+            source_positions_xyz_m[index : index + 1],
+            amplitude_scales[index : index + 1],
+            MULTI_SOURCE_RECEIVERS_XYZ_M,
+            sample_rate_hz,
+            atmosphere,
+            reference_distance_m,
+        )
+        for index in range(2)
+    ]
+    common_sample_count = together.shape[1]
+    summed = sum(
+        np.pad(channels, ((0, 0), (0, common_sample_count - channels.shape[1])))
+        for channels in separately
+    )
+    assert np.allclose(together, summed, atol=1e-12)
+
+
+def test_an_amplitude_scale_multiplies_the_received_waveform(
+    atmosphere: AtmosphericConditions, sample_rate_hz: int, reference_distance_m: float
+) -> None:
+    source_signal = np.random.default_rng(2).standard_normal(sample_rate_hz // 4)
+    source_positions_xyz_m = np.array([[30.0, 40.0, MULTI_SOURCE_HEIGHT_M]])
+    loud = render_multi_source_receiver_signals(
+        [source_signal],
+        source_positions_xyz_m,
+        np.array([1.0]),
+        MULTI_SOURCE_RECEIVERS_XYZ_M,
+        sample_rate_hz,
+        atmosphere,
+        reference_distance_m,
+    )
+    quiet = render_multi_source_receiver_signals(
+        [source_signal],
+        source_positions_xyz_m,
+        np.array([0.25]),
+        MULTI_SOURCE_RECEIVERS_XYZ_M,
+        sample_rate_hz,
+        atmosphere,
+        reference_distance_m,
+    )
+    assert np.allclose(quiet, 0.25 * loud, atol=1e-12)
+
+
+def test_the_source_height_shortens_no_path_it_should_lengthen(
+    atmosphere: AtmosphericConditions, sample_rate_hz: int, reference_distance_m: float
+) -> None:
+    """Heights are carried into the distance, so a raised source is farther."""
+    source_signal = np.random.default_rng(3).standard_normal(sample_rate_hz // 4)
+    on_the_ground = render_multi_source_receiver_signals(
+        [source_signal],
+        np.array([[50.0, 40.0, 0.0]]),
+        np.array([1.0]),
+        np.array([[50.0, 40.0, 0.0]]),
+        sample_rate_hz,
+        atmosphere,
+        reference_distance_m,
+    )
+    raised = render_multi_source_receiver_signals(
+        [source_signal],
+        np.array([[50.0, 40.0, 20.0]]),
+        np.array([1.0]),
+        np.array([[50.0, 40.0, 0.0]]),
+        sample_rate_hz,
+        atmosphere,
+        reference_distance_m,
+    )
+    assert float(np.max(np.abs(raised))) < float(np.max(np.abs(on_the_ground)))
+
+
+def test_a_source_count_mismatch_is_rejected(
+    atmosphere: AtmosphericConditions, sample_rate_hz: int, reference_distance_m: float
+) -> None:
+    with pytest.raises(ValueError, match="same number of sources"):
+        render_multi_source_receiver_signals(
+            [np.zeros(100), np.zeros(100)],
+            np.array([[30.0, 40.0, MULTI_SOURCE_HEIGHT_M]]),
+            np.array([1.0]),
+            MULTI_SOURCE_RECEIVERS_XYZ_M,
+            sample_rate_hz,
+            atmosphere,
+            reference_distance_m,
+        )

@@ -40,8 +40,10 @@ src/utils/array_types   ← leaf; array aliases, imported by nearly everything
 src/config/             ← imported by scripts and app, imports Protocols only, except
                           simulation_context_factory, the one composition root
 src/utils/io/           ← imported by scripts and app, imports domain types for serialization
+src/utils/metrics/      ← leaf; scores position sets, imported by scripts
 src/utils/visualization ← imports everything, imported by scripts and app
-scripts/                ← imports everything, imported by nothing
+scripts/                ← imports everything; imported by nothing in src/, and by
+                          one sibling script (the sweep reuses the run driver)
 app/                    ← imports src/ and scripts' outputs, imported by nothing in src/
 ```
 
@@ -340,6 +342,13 @@ common clock. The signal is zero-padded by the delay first, so the tail never wr
 A gain matrix cannot carry a delay, so this is a separate entry point rather than a method on
 `ChannelProtocol` — the time-difference-of-arrival the estimator needs lives only in the waveform.
 
+**Extension → several concurrent sources ✅ implemented:**
+`render_multi_source_receiver_signals` takes one waveform, one 3D position and
+one amplitude scale per source and accumulates them on a common clock sized by
+the longest path. Superposition is linear, so it reuses the same per-pair
+operator and the single-source render is exactly its `n_sources = 1` case —
+pinned by test, so the two cannot drift.
+
 ### `receiver_noise.py` ✅ implemented
 
 **Owns:** `add_white_noise_at_snr_db` and its multi-channel form. Noise is drawn independently per
@@ -356,6 +365,33 @@ domain extent. Pure geometry; receivers sit on the ground plane, so z is not car
 This is the one module in `acoustic/` that imports `config/`, because the dispatcher exists to turn
 a strategy name into a layout. The three placement functions underneath it take plain floats and
 import nothing.
+
+**Extension → N-receiver layouts ✅ implemented:** `place_receivers_from_layout`
+resolves a `ReceiverLayoutConfiguration` into `(n_receivers, 3)` positions and
+runs both guards on the result. It lives here rather than in
+`receiver_layout.py` so that this stays the only module in `acoustic/` reading
+`config/`.
+
+### `receiver_layout.py` ✅ implemented
+
+**Owns:** `build_ring_receiver_positions_xyz`,
+`build_grid_receiver_positions_xyz`, `build_random_receiver_positions_xyz`
+(Poisson-disc rejection against `minimum_separation_m`),
+`lift_positions_to_height_xyz`, and the two guards
+`compute_minimum_pairwise_separation_m` and `compute_collinearity_measure`,
+enforced by `validate_receiver_layout`.
+**Never:** Renders anything, or reads `config/`.
+
+Positions carry a height here because a multi-source run solves for `(x, y)`
+while computing ranges in 3D, so the microphone height belongs in the geometry
+rather than being dropped.
+
+**The collinearity guard is the N-receiver form of the perpendicular-bisector
+degeneracy.** With every receiver on a line, a position and its mirror across
+that line produce identical delays at every receiver. It is skipped below three
+receivers, where it carries no information: two points always lie on a line, and
+that case is handled by the bisector flag in `level_ratio_triangulation.py`
+instead.
 
 ### `measured_impulse_response_channel.py`
 
@@ -385,6 +421,38 @@ test, because getting it backwards silently mirrors every estimate.
 **Measure coherence after alignment.** On the raw pair, a baseline delay comparable to the Welch
 segment collapses the coherence; measured that way `σ_D` came out at 6.5 m instead of 0.014 m and
 the error ellipse was meaningless.
+
+**Extension → the curve as the primitive ✅ implemented.** The multi-source side
+needs the whole correlation function, not its peak: several sources live in one
+curve, and a located source is peeled out of it. This file therefore also owns
+`GeneralizedCrossCorrelationCurve`, `compute_whitened_cross_spectrum`,
+`compute_generalized_cross_correlation`,
+`accumulate_generalized_cross_correlation_over_windows`,
+`compute_pair_correlation_curves`, `refine_peak_index`,
+`estimate_delay_from_correlation_curve` and `estimate_delay_near_prediction`.
+
+The original scalar `estimate_time_difference_of_arrival` is **left exactly as
+it was** rather than being replaced. It is what the single-source pipeline runs
+on, and its metrics reproduce bit-for-bit against the committed reference — the
+guarantee is worth more than the naming symmetry.
+
+Four things the curve form does that the scalar form did not:
+
+| Change | Why |
+|---|---|
+| Whitening band-limited to `[lowest, highest]` | Above a codec brickwall the content is encoder noise floor; a phase transform would raise it to full weight in the correlation |
+| Parameterised phase transform `\|X_i X_j*\|^β + γ` | `β = 1` recovers conventional PHAT and shows the largest performance fluctuation; near 0.7 some magnitude survives |
+| Analytic-signal envelope, optional | A band-passed input drives the correlation toward a sinc whose ripples become spurious map peaks. It costs some sub-sample sharpness, so it is measured rather than assumed |
+| Exponential peak interpolation | Reported best of parabolic, exponential and Fourier for this map |
+
+**Windows are accumulated in the frequency domain,** averaging the whitened
+cross-spectrum and transforming once, not averaging curves. Fire is continuous
+noise, so one window gives a peak buried in its own variance; 50 s at 0.5 s
+windows with half overlap gives about 200.
+
+**`estimate_delay_near_prediction` exists because of mixtures.** A pair curve's
+global maximum belongs to whichever source dominates that pair, so a source the
+map has already located has to be read out of its own neighbourhood instead.
 
 ### `band_level_difference.py` ✅ implemented
 
@@ -430,20 +498,171 @@ which levels cannot supply. The protocol is left for a level-based estimator; re
 
 **Extension → rate of spread estimation:** compare estimated positions at consecutive time steps to estimate front velocity.
 
-### `multiple_source_estimator.py`
+### `receiver_pair_index.py` ✅ implemented
 
-**Owns:** `MultipleSourceEstimator`. Handles superposition of signals from multiple concurrent fire fronts. Separates the mixture into per-source contributions, then applies single-source estimation to each.
-**Status:** Stub. Scope to two well-separated sources first.
+**Owns:** `enumerate_receiver_pairs` in canonical `i < j` order,
+`compute_pair_baseline_distances_m` and `compute_maximum_absolute_lag_s`. One
+definition of pair ordering for the whole subpackage.
+**Never:** Touches signals.
 
-**Extension path:**
+A signed delay only means something against a stated ordering, so the
+`τ > 0 means receiver i hears it later` convention is pinned here rather than
+re-derived at each call site.
 
-| Step | What changes |
-|---|---|
-| 1. Two sources, well-separated bearings | Cluster receivers by dominant source, apply single-source to each cluster |
-| 2. Two sources, overlapping | Source separation (e.g. NMF on the spatial level matrix), then single-source per component |
-| 3. N sources | General multi-source assignment. Future work in the paper |
+### `steered_response_power.py` ✅ implemented
 
-**Extension → dense receiver selection:** when many receivers are available, select the subset with highest SNR or best geometric diversity. One additional method in this file.
+**Owns:** the candidate grid (`build_candidate_grid_xyz`,
+`subdivide_candidate_cells`), the delay tables (`compute_pair_delay_table_s`,
+`compute_distance_bounds_to_cells_m`, `compute_cell_delay_bounds_s`), the map
+(`pool_curve_over_intervals`, `combine_pairwise_maps`,
+`compute_steered_response_power_map`), and the coarse-to-fine driver
+(`run_coarse_to_fine_search`, `extract_map_peak`, `select_retained_cells`).
+**Never:** Assumes a source count.
+
+**The grid is pooled over, not sampled at.** The time-difference-of-arrival
+gradient has magnitude at most `2/c`, so a 2 m cell spans about 16 ms of delay —
+some 730 samples at 44.1 kHz — while a correlation peak carrying 10 kHz of
+bandwidth is about 4 samples wide. Point sampling at that spacing steps over the
+peak and returns a confident maximum somewhere else, with no symptom that
+anything went wrong. Point sampling would need roughly 1.7 cm cells, a
+36-million-point grid per deflation round.
+`tests/spark/inverse/test_steered_response_power.py` holds the regression: at
+the same spacing, volumetric pooling puts the map maximum on the true cell and
+point sampling does not.
+
+**The bounds are guaranteed to contain the cell's delays,** because each
+receiver distance is bounded over the cell box and the extremes are differenced.
+That is what makes discarding a cell safe rather than a heuristic.
+
+**The product combinator returns a geometric mean.** Taking the root is monotone
+so it moves no maximum, but it keeps the map on the scale of one pairwise map
+however many pairs there are. Without it the raw product of fifteen maps runs to
+`1e-180` and every ratio against the map median stops meaning anything — the
+prominence test included.
+
+**The first level runs on low-frequency content only.** Peak width goes
+inversely with frequency, so that map is deliberately smooth and its basins are
+wide enough that a coarse cell cannot fall between two of them.
+
+### `multilateration.py` ✅ implemented
+
+**Owns:** `compute_predicted_time_differences_s`,
+`compute_time_difference_jacobian`, `compute_degrees_of_freedom` and
+`refine_position_gauss_newton`, weighted by inverse delay variance, with the
+covariance from the weighted normal matrix. The N-receiver analogue of
+`level_ratio_triangulation.py`.
+**Never:** Touches signals.
+
+**Seeded by the map, never run alone.** Two-step delay-then-solve methods
+discard the rest of the correlation function and are fragile under noise, which
+is why the map comes first.
+
+**The residual needs `N ≥ 5` to say anything.** The cocycle constraint means `N`
+receivers supply only `N − 1` independent delays however many pairs are formed,
+so against two unknowns there are `N − 3` degrees of freedom. At `N = 3` the fit
+is exact by construction, the residual is uninformative, and the two hyperbola
+branches can intersect twice — reported through `is_ambiguous` rather than
+hidden.
+
+### `source_deflation.py` ✅ implemented
+
+**Owns:** `build_source_template`, `apply_tdoa_notch_deflation`,
+`apply_subspace_projection_deflation`, the `deflate_located_source` dispatcher,
+`compute_delay_and_sum_beamformed_signal` and
+`compute_residual_correlation_energy_ratio`.
+**Never:** Reads ground truth or the forward model's per-source signals.
+
+**Deflation acts on the correlations, not the waveforms.** This is what keeps
+the isolation rule intact: subtracting an estimated source from the waveforms
+would need a propagation operator, while notching or projecting it out of the
+cross-correlations needs only receiver positions, an assumed speed of sound and
+the correlations themselves. No shared propagation leaf was required.
+
+**The notch takes everything under it; the projection takes only what the source
+explains.** That is the whole difference, and it is what makes the projection
+survive a power disparity — the documented failure mode of every method in this
+family.
+
+**The template width must match the correlation peak.** Set five times too wide,
+the least-squares coefficient underestimates the peak, the projection leaves
+most of it behind, and the loop re-detects the source it just peeled off. This
+was observed, not predicted.
+
+**Documented ceiling, inherited:** the originators of the notch approach report
+that at three sources the noise in the correlation function becomes prohibitive.
+`windowed_position_clustering.py` exists because of it.
+
+### `multiple_source_estimator.py` ✅ implemented
+
+**Owns:** `MultipleSourceEstimator` and the `localize_multiple_sources` driver,
+structured as the X-SRP loop: build the pair correlations once, search the
+domain, refine against every pair delay, peel the source out of the
+correlations, search again. `update_signal_features` is the deflation step and
+`update_grid` is the refinement step, so one loop covers both the coarse-to-fine
+search and the multi-source peeling.
+**Never:** Requires the true source count.
+
+`K̂` is an output. The loop stops when the residual map peak is not prominent
+against the map median, when the peak lands within `minimum_source_separation_m`
+of an accepted source, when `maximum_source_count` is reached, or when peeling
+stops removing correlation energy — and it reports which.
+
+**A source's delays are read from its own neighbourhood of each curve,** not
+from each curve's global maximum, which in a mixture belongs to whichever source
+dominates that pair.
+
+**Extension → dense receiver selection:** when many receivers are available,
+select the subset with highest SNR or best geometric diversity. One additional
+method in this file.
+
+**Extension → group-sparse joint fitting:** the contingency if sequential
+deflation breaks down at three sources. Fit the whole map at once over the
+candidate grid so all sources are estimated simultaneously and the sequential
+error compounding disappears.
+
+### `windowed_position_clustering.py` ✅ implemented
+
+**Owns:** `cluster_positions_by_radius` and
+`estimate_positions_by_windowed_clustering`. Runs a single-source search on many
+short windows, clusters the per-window maxima, and reports each dense cluster as
+a source with its centroid and an empirical spread.
+**Never:** Assumes the windows are independent of each other in the fusion step.
+
+**A second route to `K̂`, independent of deflation,** so a disagreement between
+the two is a finding rather than a restatement. Much of the multi-source
+literature leans on speech sparsity — disjoint time-frequency support, one
+source dominant per bin, voice activity detection — none of which transfers to
+continuous, stationary, spectrally similar broadband noise. The one speech-like
+property fire does have is impulsivity: crackle is a sequence of transients, so
+within a short window one source frequently dominates outright, which is exactly
+the condition this needs.
+
+**It is the first thing a power disparity breaks.** On the `m1` scene, where the
+second source is 6 dB down, 48 of 49 windows land on the louder source and this
+route reports `K̂ = 1` where sequential deflation reports 2. That is the
+predicted behaviour, and it is reported rather than suppressed.
+
+### `joint_position_refinement.py` ✅ implemented
+
+**Owns:** `align_channels_to_beamformer`, `compute_pair_level_differences_db`,
+`compute_predicted_level_differences_db`, `compute_level_difference_jacobian`,
+`fuse_pair_geometric_level_differences` and
+`refine_position_with_band_levels` — one Gauss-Newton solve over delay residuals
+and band-level residuals together, each weighted by its own variance and fused
+through `inverse_variance_fusion.py`.
+**Never:** Recomputes `α` — it is handed the coefficients, keeping
+`atmosphere/` the single source.
+
+**This is where the two observables earn their keep together.** Delays constrain
+range *differences* very precisely, but a compact array constrains absolute
+range poorly, so a delay-only ellipse stretches radially away from the array.
+The absorption slope depends on absolute path length, which is exactly that
+direction.
+
+**The reference and the channels must share a clock.** A residual delay puts a
+phase ramp across each band and cancels part of the matched-filter projection;
+aligning to the nearest sample is enough, and the beamformer's own shifts are
+what to align by.
 
 ---
 
@@ -464,6 +683,91 @@ relative to 44.1 kHz that the transfer-function form loses accuracy.
 Kept separate from `lowpass_filter.py` on purpose. That file owns the *preprocessing* filter
 applied once to a recording; this one owns the *analysis* filterbank the estimator runs per window.
 Different consumers, different lifecycles.
+
+**Extension → fractional octaves ✅ implemented.** `compute_band_half_width_factor`,
+`build_fractional_octave_centre_frequencies_hz` (from the tabulated ISO 266
+preferred series), `compute_fractional_octave_band_edges_hz`,
+`design_fractional_octave_bandpass` and `apply_fractional_octave_bandpass`
+generalise the edges to `f_c · 2^(±1/(2·fraction))`. The octave functions are now
+thin wrappers at `fraction_denominator = 1`, so existing callers are unaffected —
+pinned by test.
+
+**Why thirds above 2 kHz.** The full 8 kHz octave spans 5.6–11.3 kHz and `α`
+roughly doubles across it, so the energy-weighted effective `α` drifts downward
+as range grows and biases exactly the bands that carry the range information.
+
+### `codec_bandwidth_detector.py` ✅ implemented
+
+**Owns:** `compute_long_term_average_spectrum` and `detect_codec_cutoff_hz`,
+shared by the Stage 0 audit and the band selector.
+**Never:** Filters or modifies the signal.
+
+**The crossing is refined on the unsmoothed spectrum.** The search runs on a
+median-smoothed curve so one loud bin above the wall cannot set the answer, but
+a centred median filter holds its in-band value for half its width past a step
+edge, so reading the crossing off the smoothed curve alone reports the cutoff
+several bins too high.
+
+**It is accurate to the analysis window's skirt, not to one bin.** A Hann window
+spreads a step edge over about four bins however sharp the wall really is; the
+test asserts that and says why, rather than asserting something no windowed
+spectrum can deliver.
+
+Measured on `data/raw_recordings/kaggle/`: every one of the twenty files
+brickwalls at 15.0–15.7 kHz, confirming one common encoder.
+
+### `usable_band_selector.py` ✅ implemented
+
+**Owns:** `select_usable_band_centres_hz`, applying the upper-edge rule against a
+measured cutoff, and `filter_bands_by_signal_to_noise_ratio`, applying the
+run-time test.
+**Never:** Knows about propagation or ranges; it is handed levels.
+
+A band whose upper edge reaches past the brickwall measures the encoder noise
+floor over part of its width, which biases its level downward by an amount that
+grows with range. Dropping the band is cheaper than modelling that bias.
+
+### `excerpt_coherence.py` ✅ implemented
+
+**Owns:** `compute_maximum_normalized_cross_correlation`,
+`compute_pairwise_excerpt_coherence_matrix` and
+`compute_maximum_off_diagonal_coherence`.
+**Never:** Chooses excerpts.
+
+The pre-flight guard. Two source excerpts that share waveform content put a peak
+into every receiver pair's cross-correlation at a lag no source occupies, and
+nothing downstream can tell that artefact from a real source.
+
+### `source_excerpt_selector.py` ✅ implemented
+
+**Owns:** `SourceExcerpt`, `read_leading_excerpt`, `list_pool_recordings`,
+`choose_least_coherent_indices` and `select_source_excerpts`, which raises when
+the chosen excerpts exceed the configured coherence limit.
+**Never:** Applies gain, propagation, or normalization.
+
+Three policies: `explicit` takes the configured order, `distinct_provenance`
+shuffles the pool under a seed and never reuses a file, `minimum_coherence`
+greedily picks the subset whose worst mutual coherence is smallest — the last is
+`O(n²)` in the pool size and is what the `m1` scene uses.
+
+### `matched_filter_band_level.py` ✅ implemented
+
+**Owns:** `compute_band_bin_masks` and `compute_matched_filter_band_levels_db`.
+Recovers per-source, per-receiver band levels from a mixture given a beamformed
+reference, as the band-restricted cross-spectrum magnitude squared normalised by
+the reference auto-spectrum.
+**Never:** Knows about geometry.
+
+**This is what replaces waveform subtraction as the input to the level stage.**
+Once deflation moved to the correlation domain there is no per-source waveform to
+difference, so the level stage projects each receiver channel onto the beamformed
+reference instead. Other sources are rejected to the extent that they are
+uncorrelated with it.
+
+**The reference and the channels must already share a clock:** a residual delay
+puts a phase ramp across each band and cancels part of the projection. Nearest-sample
+alignment is enough, and it is the caller's job — which is what keeps this file
+free of geometry.
 
 ### `band_level_meter.py` ✅ implemented
 
@@ -531,7 +835,52 @@ not properties of a run: **published equation coefficients** (the ISO 9613-1 rel
 missing value is a `TypeError` at the call site rather than a silent fallback; config objects are
 unpacked at the boundary, which is why those two packages never import `config/`.
 
-**Extension → receiver layout configuration:** number of receivers, placement strategy (regular grid, random, ring), spacing. This is a swept parameter in the paper's degradation analysis. `GeometryConfiguration` currently fixes exactly two receivers; widening it is where `ReceiverConfiguration` lands.
+**Extension → receiver layout configuration ✅ implemented.**
+`GeometryConfiguration` no longer fixes two receivers. It carries a
+`ReceiverLayoutConfiguration` (`explicit`, `ring`, `grid` or `random`, with the
+crowding and collinearity limits and the microphone height) and a tuple of
+`SourceConfiguration`, each a position and an amplitude scale. `explicit` keeps
+every two-receiver directory working unmodified, and is the only layout that
+carries its positions in the configuration — the rest are built by
+`receiver_placement.py`, because building a layout is geometry rather than
+configuration.
+
+**Two source descriptions sit side by side because two pipelines read them.**
+`true_positions_xy_m` is a list of scenarios, run one at a time by the
+single-source estimator; `[[sources.concurrent]]` is one scene whose sources all
+sound at once, which is what the multi-source estimator sees. They are separate
+keys rather than one, because collapsing them would silently change what the
+single-source sweep means.
+
+**Extension → multi-source estimator settings ✅ implemented.**
+`src/config/multi_source_localization_configuration.py` owns
+`CorrelationConfiguration`, `FractionalBandConfiguration`,
+`SteeredResponsePowerConfiguration`, `DeflationConfiguration`,
+`PositionRefinementConfiguration`, `WindowedClusteringConfiguration` and
+`LocalizationMetricsConfiguration`, grouped under
+`MultiSourceLocalizationConfiguration` and reached through
+`LocalizationConfiguration.multi_source`.
+`src/config/receiver_layout_configuration.py` and
+`src/config/source_scene_configuration.py` hold the two geometry additions.
+
+Three new configuration blocks, all required, all present in every directory:
+
+| File | Section | Holds |
+|---|---|---|
+| `data.toml` | `[excerpts]` | Recording pool, assignment policy, coherence limit, selection seed |
+| `geometry.toml` | `[receivers]` | Layout name and its parameters, the two guards, microphone height |
+| `geometry.toml` | `[[sources.concurrent]]` | One table per concurrent source: position and amplitude scale |
+| `localization.toml` | `[correlation]` | Whitening band, `β`, envelope, accumulation window, lag margin, interpolation |
+| `localization.toml` | `[fractional_bands]` | Bands per octave, centre range, codec margin, band SNR floor, cutoff detection |
+| `localization.toml` | `[steered_response_power]` | Pooling, combinator, coarse spacing, refinement, low-frequency seed |
+| `localization.toml` | `[deflation]` | Method, source ceiling, prominence, separation, residual threshold, notch width |
+| `localization.toml` | `[refinement]` | Gauss-Newton limits and whether to use the level terms |
+| `localization.toml` | `[windowed_clustering]` | The cross-check's window, radius and minimum membership |
+| `localization.toml` | `[localization_metrics]` | Optimal sub-pattern assignment cutoff and order |
+
+**`configs/m1/` is the multi-source scene:** two sources at (30, 40) and
+(70, 65) with the second 6 dB down, heard by a ring of six receivers of radius
+45 m, each source carrying its own 50 s excerpt.
 
 ### `simulation_context.py` ✅ implemented
 
@@ -584,8 +933,26 @@ reproducibility.
 ### `array_types.py` ✅ implemented
 
 **Owns:** the array aliases every signature uses: `Float64Array`, `Float32Array`, `Int64Array`,
-`BoolArray`. One import instead of `npt.NDArray[np.float64]` spelled out in four hundred places.
+`BoolArray`, `ComplexArray`. One import instead of `npt.NDArray[np.float64]` spelled out in four
+hundred places.
 **Never:** Holds a function.
+
+---
+
+## `src/utils/metrics/` — scoring a result against the truth
+
+### `localization_metrics.py` ✅ implemented
+
+**Owns:** `compute_position_distance_matrix_m`,
+`match_estimated_to_true_sources` (Hungarian assignment),
+`compute_optimal_subpattern_assignment_distance` and
+`build_localization_metric_record`.
+**Never:** Runs an estimator.
+
+**Optimal sub-pattern assignment rather than a root-mean-square error over
+matched pairs,** because that error silently ignores missed and spurious
+sources — the failure mode a multi-source sweep exists to expose. A run that
+finds one source of three cannot look good by locating that one precisely.
 
 ---
 
@@ -667,6 +1034,29 @@ Takes a concrete `SquareGridMesh` rather than a `MeshProtocol` because a raster 
 **Owns:** received level traces over the observations of a run (F5); the per-band analysis chain on one clip, `ΔL_b`, `α_b·D` and `G_b` (F5); estimates against ground truth with error ellipses (F6); error against signal-to-noise ratio and error against distance from the bisector (F7); reduced chi-square per scenario (F8); front travel with its rate-of-spread fit and residual (F9).
 **Never:** Imports from both `inverse/` and `fire/`. Every quantity from either side arrives as a function argument.
 
+**Extension → multi-source diagnostics ✅ implemented:**
+`plot_pair_correlation_curves` draws one generalised cross-correlation per
+receiver pair with the true delay marked, so a peak sitting somewhere else is
+visible as such rather than averaged into a position error;
+`plot_band_level_difference_regression` draws the per-band level difference
+against its absorption coefficient, where the model says the points fall on a
+line whose intercept is the geometric term and whose slope is the path
+difference.
+
+### `steered_response_power_plotter.py` ✅ implemented
+
+**Owns:** `reshape_map_to_grid`, `add_error_ellipse`,
+`plot_steered_response_power_map` — the map as a heat map with receivers, truth,
+estimates and error ellipses — and `plot_windowed_position_clusters`, the
+per-window maxima with the clusters they formed.
+
+### `localization_error_plotter.py` ✅ implemented
+
+**Owns:** `plot_metric_against_parameter`, the sweep curves, and
+`plot_source_count_confusion`, estimated against true source count. A point off
+the diagonal there is the failure the sweep exists to find: a merged pair below
+it, a spurious detection above it.
+
 ### `channel_plotter.py` ✅ implemented
 
 **Owns:** ISO 9613-1 `α(f)` at the scenario's air conditions, and channel gain against range per octave band — figure F4.
@@ -734,6 +1124,35 @@ Loads `configs/` → reads a recording → cuts it into clips → renders each c
 → localizes from those two signals alone → prints one table per source scenario and writes the
 metrics document. Takes no parameters of its own beyond `--configs <dir>`.
 
+### `run_source_excerpt_audit.py` ✅ implemented
+
+Stage 0 of the multi-source pipeline, and the one to run before anything else.
+Reads the pool, measures each recording's codec cutoff, resolves both band lists
+(one wide passband for the correlation stage, fractional octaves for the level
+stage), selects one excerpt per source, computes the mutual coherence matrix and
+**exits non-zero** when two excerpts share waveform content beyond the permitted
+limit. Writes `results/metrics/source_excerpt_audit.json`.
+
+### `run_multi_source_localization.py` ✅ implemented
+
+Loads `configs/` → gives each configured source its own recording excerpt →
+builds the receiver layout → renders the mixture → adds receiver noise →
+`localize_multiple_sources` → optional windowed-clustering cross-check →
+optional level fusion → matches against ground truth → writes metrics and
+figures. Takes `--configs <dir>` and nothing else.
+
+### `run_localization_sweep.py` ✅ implemented
+
+Loops one scene over receiver count, signal-to-noise ratio, source separation,
+`β` and pairwise combinator, writing one metrics record per cell and the
+resolution curve.
+
+**This is the one script that imports another.** Reusing
+`run_multi_source_localization`'s run driver keeps a single definition of what a
+run is, so a sweep cell and a single run cannot drift apart. `scripts/` gained an
+`__init__.py` to make that import resolvable; nothing in `src/` imports either of
+them, which is the direction the dependency rule is about.
+
 ---
 
 ## `tests/`
@@ -757,6 +1176,25 @@ files are exercised on every run rather than duplicated in test constants.
 | `test_component_registry.py` | Every registered name resolves to a class that satisfies its Protocol |
 | `spark/atmosphere/test_atmospheric_absorption.py` ✅ | ISO 9613-1 against the published table at four temperature/humidity pairs |
 | `spark/inverse/test_single_source_estimator.py` ✅ | Noiseless synthetic sources recovered; error and ellipse grow with noise; bisector flagged |
+| `audio/test_codec_bandwidth_detector.py` ✅ | Synthetic brickwall recovered to the analysis window's skirt; a lower wall detected lower |
+| `audio/test_octave_band_filter.py` ✅ | `fraction_denominator = 1` reproduces the octave edges exactly; `= 3` matches the ISO third-octave series |
+| `audio/test_usable_band_selector.py` ✅ | A 15.5 kHz cutoff at 0.9 margin admits 10 kHz and rejects 12.5 kHz |
+| `audio/test_excerpt_coherence.py` ✅ | Identical excerpts score 1.0, independent noise near zero, the matrix is symmetric |
+| `audio/test_source_excerpt_selector.py` ✅ | Distinct-provenance never reuses a file; the coherence limit raises; minimum-coherence avoids a duplicated pair |
+| `audio/test_matched_filter_band_level.py` ✅ | Two sources at known gains: recovered level differences within 0.5 dB |
+| `spark/acoustic/test_receiver_layout.py` ✅ | Ring, grid and random honour the separation guard; a collinear array of three or more raises; two receivers skip that guard |
+| `spark/acoustic/test_free_field_propagation.py` ✅ | `n_sources = 1` matches the previous path to machine precision; two sources equal the sum of two single renders |
+| `spark/inverse/test_receiver_pair_index.py` ✅ | Canonical ordering, pair count `n(n-1)/2`, the lag covers the longest baseline |
+| `spark/inverse/test_time_difference_of_arrival.py` ✅ | The curve peak equals the previous scalar estimate; band-limited whitening ignores out-of-band noise; the envelope removes sign changes; the sign convention still pinned; reading near a prediction finds the quieter of two peaks |
+| `spark/inverse/test_steered_response_power.py` ✅ | **Volumetric pooling puts the map maximum on the true cell where point sampling at the same spacing does not** — the regression for the revision-2 correction; the delay bounds contain every delay the cell can produce; every pooling rule and combinator peaks at the truth |
+| `spark/inverse/test_multilateration.py` ✅ | Noiseless recovery to a micrometre; the Jacobian matches a finite difference; the covariance grows with the delay variance; `N = 3` flagged ambiguous with no spare degrees of freedom |
+| `spark/inverse/test_source_deflation.py` ✅ | Deflating removes the located source from every pair curve; deflating twice changes nothing further; the projection spares what sits under the source where the notch does not |
+| `spark/inverse/test_windowed_position_clustering.py` ✅ | Two separated point clouds form two clusters; a thin cluster is dropped; one rendered source recovered as one cluster |
+| `spark/inverse/test_multiple_source_estimator.py` ✅ | One and two rendered sources recovered; `K̂` is an output, not an input; the class and the driver agree |
+| `spark/inverse/test_joint_position_refinement.py` ✅ | Adding the level terms shrinks the error ellipse; the level Jacobian matches a finite difference |
+| `utils/metrics/test_localization_metrics.py` ✅ | Hungarian matching on a permuted set; a missed source priced at the cutoff, the same as a spurious one |
+| `utils/visualization/test_steered_response_power_plotter.py` ✅ | The map folds back into its grid; both figures survive having found nothing |
+| `utils/visualization/test_localization_error_plotter.py` ✅ | One line per series; a label mismatch raises |
 
 ---
 
@@ -781,13 +1219,27 @@ All extensions in one table, sorted by likely implementation order.
 | Clustered tree placement | `random_tree_placement_field.py` | None | Week 2 |
 | Frequency-dependent attenuation | `exponential_attenuation_channel.py` | Gain widens to 3D | Week 2 |
 | Spectral source model | `burning_cell_source_model.py` | Return widens to 2D | Week 2 |
-| Two-source estimation | `multiple_source_estimator.py` | None | Week 2 |
+| Two-source estimation | `multiple_source_estimator.py` | None | ✅ done |
+| Fractional-octave filterbank | `octave_band_filter.py` | None | ✅ done |
+| Codec bandwidth detection | `codec_bandwidth_detector.py` | None | ✅ done |
+| Per-source excerpt selection and its coherence guard | `excerpt_coherence.py`, `source_excerpt_selector.py` | None | ✅ done |
+| Matched-filter per-source band levels | `matched_filter_band_level.py` | None | ✅ done |
+| N-receiver layouts and their guards | `receiver_layout.py`, `receiver_placement.py` | None | ✅ done |
+| Multi-source forward render | `free_field_propagation.py` | None | ✅ done |
+| Correlation curve as the primitive | `time_difference_of_arrival.py` | Additive | ✅ done |
+| Steered response power with volumetric pooling | `steered_response_power.py` | None | ✅ done |
+| Correlation-domain deflation | `source_deflation.py` | None | ✅ done |
+| N-receiver multilateration | `multilateration.py` | None | ✅ done |
+| Windowed-clustering cross-check on `K̂` | `windowed_position_clustering.py` | None | ✅ done |
+| Delay-and-level joint refinement | `joint_position_refinement.py` | None | ✅ done |
+| Optimal sub-pattern assignment scoring | `utils/metrics/localization_metrics.py` | None | ✅ done |
 | Balbi 2020 fixed-point ROS | `rate_of_spread_equations.py` | None | If time allows |
 | Interpolated wind field | New file | None | If time allows |
 | Terrain-aware path loss | New wrapper file | None | If time allows |
 | Triangular mesh | `triangular_mesh.py` | None | If time allows |
 | Vegetation raster field | New file | New `FuelFieldProtocol` | If time allows |
 | Dense receiver selection | `multiple_source_estimator.py` | None | If time allows |
+| Group-sparse joint map fitting | `multiple_source_estimator.py` | None | Contingency if deflation breaks at K = 3 |
 | N-source general assignment | `multiple_source_estimator.py` | None | Future work |
 | Time-varying wind | New file | Protocol signature widens | Future work |
 | Measured impulse response channel | `measured_impulse_response_channel.py` | None | Future work |

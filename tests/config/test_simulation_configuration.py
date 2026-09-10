@@ -122,16 +122,62 @@ def test_position_array_rejects_malformed_input() -> None:
         to_position_array([[1.0, 2.0, 3.0]])
 
 
-def test_geometry_requires_exactly_two_receivers(tmp_path: Path) -> None:
+DOMAIN_SECTION: str = "[domain]\nsize_x_m = 100.0\nsize_y_m = 100.0\n\n"
+EXPLICIT_RECEIVER_SECTION: str = (
+    '[receivers]\nlayout = "explicit"\ncount = 1\nring_radius_m = 45.0\n'
+    "ring_start_bearing_rad = 0.0\ncenter_x_fraction = 0.5\n"
+    "center_y_fraction = 0.5\ngrid_spacing_m = 25.0\nrandom_radius_m = 45.0\n"
+    "random_seed = 0\nminimum_separation_m = 5.0\nmaximum_collinearity = 0.98\n"
+    "height_m = 1.5\npositions_xy_m = [[0.0, 0.0]]\n\n"
+)
+SOURCE_SECTION: str = (
+    "[sources]\ntrue_positions_xy_m = [[50.0, 50.0]]\nheight_m = 0.5\n\n"
+    "[[sources.concurrent]]\nposition_xy_m = [30.0, 40.0]\namplitude_scale = 1.0\n"
+)
+
+
+def test_an_explicit_layout_needs_at_least_two_receivers(tmp_path: Path) -> None:
     path = tmp_path / GEOMETRY_FILENAME
     path.write_text(
-        "[domain]\nsize_x_m = 100.0\nsize_y_m = 100.0\n\n"
-        "[receivers]\npositions_xy_m = [[0.0, 0.0]]\n\n"
-        "[sources]\ntrue_positions_xy_m = [[50.0, 50.0]]\n",
+        DOMAIN_SECTION + EXPLICIT_RECEIVER_SECTION + SOURCE_SECTION, encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="at least two receivers"):
+        load_geometry_configuration(path)
+
+
+def test_a_computed_layout_carries_no_explicit_positions(tmp_path: Path) -> None:
+    path = tmp_path / GEOMETRY_FILENAME
+    path.write_text(
+        DOMAIN_SECTION
+        + EXPLICIT_RECEIVER_SECTION.replace(
+            'layout = "explicit"\ncount = 1', 'layout = "ring"\ncount = 6'
+        )
+        + SOURCE_SECTION,
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="exactly two receivers"):
-        load_geometry_configuration(path)
+    geometry = load_geometry_configuration(path)
+    assert geometry.receiver_layout.layout == "ring"
+    assert geometry.receiver_layout.count == 6
+    assert geometry.receiver_positions_xy_m.shape == (0, 2)
+
+
+def test_the_concurrent_scene_loads_beside_the_scenario_list(tmp_path: Path) -> None:
+    path = tmp_path / GEOMETRY_FILENAME
+    path.write_text(
+        DOMAIN_SECTION
+        + EXPLICIT_RECEIVER_SECTION.replace(
+            "positions_xy_m = [[0.0, 0.0]]",
+            "positions_xy_m = [[0.0, 0.0], [10.0, 0.0]]",
+        ).replace("count = 1", "count = 2")
+        + SOURCE_SECTION,
+        encoding="utf-8",
+    )
+    geometry = load_geometry_configuration(path)
+    assert geometry.true_source_positions_xy_m.shape == (1, 2)
+    assert len(geometry.concurrent_sources) == 1
+    assert geometry.concurrent_sources[0].amplitude_scale == 1.0
+    assert geometry.source_height_m == 0.5
+    assert geometry.concurrent_source_positions_xyz_m.shape == (1, 3)
 
 
 def test_an_edited_configuration_directory_changes_the_loaded_values(

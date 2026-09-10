@@ -9,3 +9,10 @@ overlap_fraction = 0.0
 [output]
 metrics_directory = "results/metrics"
 metrics_filename = "single_source_localization.json"
+
+[excerpts]
+recording_directory = "data/raw_recordings/kaggle"
+recording_filenames = []
+assignment_policy = "minimum_coherence"
+maximum_permitted_excerpt_coherence = 0.15
+selection_seed = 0

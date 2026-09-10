@@ -592,3 +592,113 @@ def plot_front_position_over_observations(
 
     figure.tight_layout()
     return figure
+
+
+def plot_pair_correlation_curves(
+    lag_axes_s: list[Float64Array],
+    correlation_values: list[Float64Array],
+    pair_labels: list[str],
+    true_delays_s: Float64Array,
+    title: str,
+) -> Figure:
+    """Draws one generalised cross-correlation per receiver pair.
+
+    The true delay is marked on each, so a peak that sits somewhere else is
+    visible as such rather than being averaged into a position error.
+
+    Args:
+        lag_axes_s: Lag axis per pair, each shape `(n_lags,)`.
+        correlation_values: Curve per pair, matching shapes.
+        pair_labels: One label per pair.
+        true_delays_s: True delay per pair, shape `(n_pairs,)`. Pass an empty
+            array when no ground truth is available.
+        title: Figure title.
+
+    Returns:
+        The figure. Saving it is the caller's job.
+
+    Raises:
+        ValueError: If the axis, value and label counts disagree.
+    """
+    if not len(lag_axes_s) == len(correlation_values) == len(pair_labels):
+        raise ValueError("one lag axis and one label are required per curve")
+    pair_count = len(pair_labels)
+    figure = Figure(figsize=(7.5, 1.6 * pair_count + 1.0))
+    pair_axes = [
+        figure.add_subplot(pair_count, 1, index + 1) for index in range(pair_count)
+    ]
+    delays_s = np.asarray(true_delays_s, dtype=np.float64)
+    for index, (lags_s, values, label) in enumerate(
+        zip(lag_axes_s, correlation_values, pair_labels, strict=True)
+    ):
+        axes = pair_axes[index]
+        axes.plot(1e3 * np.asarray(lags_s), np.asarray(values), linewidth=0.9)
+        if delays_s.size > index:
+            axes.axvline(
+                1e3 * float(delays_s[index]),
+                color="tab:red",
+                linestyle="--",
+                linewidth=1.0,
+            )
+        axes.set_ylabel(label, fontsize=8)
+        axes.grid(visible=True, alpha=0.3)
+    pair_axes[-1].set_xlabel("lag (ms)")
+    pair_axes[0].set_title(title)
+    figure.tight_layout()
+    return figure
+
+
+def plot_band_level_difference_regression(
+    band_center_frequencies_hz: Float64Array,
+    absorption_coefficients_db_per_m: Float64Array,
+    band_level_differences_db: Float64Array,
+    path_difference_m: float,
+    fused_geometric_level_difference_db: float,
+    title: str,
+) -> Figure:
+    """Draws the per-band level difference against its absorption coefficient.
+
+    The model says the measured difference is a common geometric offset plus a
+    term proportional to the coefficient, so the points should fall on a line
+    whose intercept is the geometric term and whose slope is the path
+    difference. A curved scatter is the model failing, not noise.
+
+    Args:
+        band_center_frequencies_hz: Band centres, shape `(n_bands,)`.
+        absorption_coefficients_db_per_m: One coefficient per band.
+        band_level_differences_db: Measured difference per band.
+        path_difference_m: Range difference the delay implies, in metres.
+        fused_geometric_level_difference_db: Fused geometric term, in decibels.
+        title: Figure title.
+
+    Returns:
+        The figure. Saving it is the caller's job.
+    """
+    coefficients = np.asarray(absorption_coefficients_db_per_m, dtype=np.float64)
+    differences_db = np.asarray(band_level_differences_db, dtype=np.float64)
+    centres_hz = np.asarray(band_center_frequencies_hz, dtype=np.float64)
+
+    figure = Figure(figsize=(7.0, 4.5))
+    axes = figure.add_subplot(111)
+    scatter = axes.scatter(
+        coefficients, differences_db, c=centres_hz, cmap="viridis", s=60
+    )
+    figure.colorbar(scatter, ax=axes, label="band centre (Hz)")
+    predicted_db = (
+        fused_geometric_level_difference_db + coefficients * path_difference_m
+    )
+    order = np.argsort(coefficients)
+    axes.plot(
+        coefficients[order],
+        predicted_db[order],
+        color="tab:red",
+        linewidth=1.2,
+        label="fitted model",
+    )
+    axes.set_xlabel("absorption coefficient (dB/m)")
+    axes.set_ylabel("level difference (dB)")
+    axes.set_title(title)
+    axes.grid(visible=True, alpha=0.3)
+    axes.legend()
+    figure.tight_layout()
+    return figure

@@ -9,7 +9,16 @@ from src.config.acoustic_rendering_configuration import AcousticRenderingConfigu
 from src.config.experiment_configuration import ExperimentConfiguration
 from src.config.fire_simulation_configuration import FireSimulationConfiguration
 from src.config.mesh_configuration import MeshConfiguration
+from src.config.multi_source_localization_configuration import (
+    MultiSourceLocalizationConfiguration,
+    load_multi_source_localization_configuration,
+)
 from src.config.receiver_configuration import ReceiverConfiguration
+from src.config.receiver_layout_configuration import (
+    EXPLICIT_LAYOUT,
+    ReceiverLayoutConfiguration,
+)
+from src.config.source_scene_configuration import SourceConfiguration
 from src.config.wind_configuration import WindConfiguration
 from src.spark.atmosphere.atmospheric_conditions import AtmosphericConditions
 from src.utils.array_types import Float64Array
@@ -107,12 +116,14 @@ class LocalizationConfiguration:
         window: Analysis window settings.
         delay_estimation: Time-difference-of-arrival settings.
         triangulation: Inversion and guard settings.
+        multi_source: Settings the K-source, N-receiver estimator adds.
     """
 
     bands: BandConfiguration
     window: WindowConfiguration
     delay_estimation: DelayEstimationConfiguration
     triangulation: TriangulationConfiguration
+    multi_source: MultiSourceLocalizationConfiguration
 
 
 @dataclass(frozen=True)
@@ -160,6 +171,28 @@ class OutputConfiguration:
 
 
 @dataclass(frozen=True)
+class ExcerptConfiguration:
+    """Which recordings a multi-source scene draws its per-source excerpts from.
+
+    Attributes:
+        recording_directory: Directory holding the candidate recordings.
+        recording_filenames: Names to draw from, in order. Empty means every wav
+            file in the directory.
+        assignment_policy: `explicit`, `distinct_provenance` or
+            `minimum_coherence`.
+        maximum_permitted_excerpt_coherence: Largest mutual waveform coherence a
+            run accepts between two source excerpts.
+        selection_seed: Seed making a shuffled assignment reproducible.
+    """
+
+    recording_directory: Path
+    recording_filenames: tuple[str, ...]
+    assignment_policy: str
+    maximum_permitted_excerpt_coherence: float
+    selection_seed: int
+
+
+@dataclass(frozen=True)
 class DataConfiguration:
     """Recording, segmentation and output settings.
 
@@ -167,11 +200,13 @@ class DataConfiguration:
         recording: Which recording to read.
         segmentation: How to cut it into clips.
         output: Where the metrics go.
+        excerpts: Which recordings feed the concurrent sources.
     """
 
     recording: RecordingConfiguration
     segmentation: SegmentationConfiguration
     output: OutputConfiguration
+    excerpts: ExcerptConfiguration
 
 
 @dataclass(frozen=True)
@@ -189,18 +224,34 @@ class DomainConfiguration:
 
 @dataclass(frozen=True)
 class GeometryConfiguration:
-    """Domain extent, receiver placement and the source scenarios to sweep.
+    """Domain extent, receiver placement and the sources to put in it.
+
+    Two source descriptions live side by side because two pipelines read them.
+    `true_source_positions_xy_m` is a list of scenarios, each run one at a time
+    by the single-source estimator; `concurrent_sources` is one scene whose
+    sources all sound at once, which is what the multi-source estimator sees.
 
     Attributes:
         domain: Extent of the simulated domain.
-        receiver_positions_xy_m: Receiver positions, shape (2, 2).
-        true_source_positions_xy_m: Ground-truth source positions, shape (n, 2).
-            Used only to report error, never fed to the estimator.
+        receiver_layout: Strategy and parameters the layout is built from.
+        receiver_positions_xy_m: Receiver positions, shape (n_receivers, 2),
+            carried only by the `explicit` layout. Every other layout is
+            resolved by `receiver_placement.py`, because building one is
+            geometry rather than configuration.
+        true_source_positions_xy_m: Ground-truth single-source scenarios, shape
+            (n_scenarios, 2). Used only to report error, never fed to the
+            estimator.
+        concurrent_sources: The sources of the multi-source scene.
+        source_height_m: Height of every source above the ground plane, in
+            metres.
     """
 
     domain: DomainConfiguration
+    receiver_layout: ReceiverLayoutConfiguration
     receiver_positions_xy_m: Float64Array
     true_source_positions_xy_m: Float64Array
+    concurrent_sources: tuple[SourceConfiguration, ...]
+    source_height_m: float
 
     @property
     def receiver_1_xy_m(self) -> Float64Array:
@@ -211,6 +262,24 @@ class GeometryConfiguration:
     def receiver_2_xy_m(self) -> Float64Array:
         """Position of the second receiver."""
         return np.asarray(self.receiver_positions_xy_m[1], dtype=np.float64)
+
+    @property
+    def concurrent_source_positions_xyz_m(self) -> Float64Array:
+        """Scene source positions lifted to the configured source height."""
+        positions_xy_m = np.stack(
+            [
+                np.asarray(source.position_xy_m, dtype=np.float64)
+                for source in self.concurrent_sources
+            ]
+        )
+        return np.column_stack(
+            (
+                positions_xy_m,
+                np.full(
+                    positions_xy_m.shape[0], self.source_height_m, dtype=np.float64
+                ),
+            )
+        )
 
 
 @dataclass(frozen=True)
@@ -344,6 +413,7 @@ def load_data_configuration(path: Path) -> DataConfiguration:
     recording = document["recording"]
     segmentation = document["segmentation"]
     output = document["output"]
+    excerpts = document["excerpts"]
     return DataConfiguration(
         recording=RecordingConfiguration(
             path=Path(recording["path"]), as_mono=bool(recording["as_mono"])
@@ -356,34 +426,101 @@ def load_data_configuration(path: Path) -> DataConfiguration:
             metrics_directory=Path(output["metrics_directory"]),
             metrics_filename=str(output["metrics_filename"]),
         ),
+        excerpts=ExcerptConfiguration(
+            recording_directory=Path(excerpts["recording_directory"]),
+            recording_filenames=tuple(
+                str(value) for value in excerpts["recording_filenames"]
+            ),
+            assignment_policy=str(excerpts["assignment_policy"]),
+            maximum_permitted_excerpt_coherence=float(
+                excerpts["maximum_permitted_excerpt_coherence"]
+            ),
+            selection_seed=int(excerpts["selection_seed"]),
+        ),
+    )
+
+
+def load_receiver_layout_configuration(
+    section: dict[str, Any],
+) -> ReceiverLayoutConfiguration:
+    """Reads the `[receivers]` section of geometry.toml.
+
+    Args:
+        section: The parsed section.
+
+    Returns:
+        The layout settings.
+
+    Raises:
+        ValueError: If an explicit layout names fewer than two receivers.
+    """
+    layout = str(section["layout"])
+    explicit_positions_xy_m = (
+        to_position_array(section["positions_xy_m"])
+        if layout == EXPLICIT_LAYOUT
+        else np.empty((0, 2), dtype=np.float64)
+    )
+    if layout == EXPLICIT_LAYOUT and explicit_positions_xy_m.shape[0] < 2:
+        raise ValueError("localization requires at least two receivers")
+    return ReceiverLayoutConfiguration(
+        layout=layout,
+        count=int(section["count"]),
+        explicit_positions_xy_m=explicit_positions_xy_m,
+        ring_radius_m=float(section["ring_radius_m"]),
+        ring_start_bearing_rad=float(section["ring_start_bearing_rad"]),
+        center_x_fraction=float(section["center_x_fraction"]),
+        center_y_fraction=float(section["center_y_fraction"]),
+        grid_spacing_m=float(section["grid_spacing_m"]),
+        random_radius_m=float(section["random_radius_m"]),
+        random_seed=int(section["random_seed"]),
+        minimum_separation_m=float(section["minimum_separation_m"]),
+        maximum_collinearity=float(section["maximum_collinearity"]),
+        height_m=float(section["height_m"]),
+    )
+
+
+def load_concurrent_sources(
+    sections: list[dict[str, Any]],
+) -> tuple[SourceConfiguration, ...]:
+    """Reads the `[[sources.concurrent]]` entries of geometry.toml.
+
+    Args:
+        sections: One parsed table per source.
+
+    Returns:
+        The scene's sources, in declaration order.
+    """
+    return tuple(
+        SourceConfiguration(
+            position_xy_m=np.asarray(section["position_xy_m"], dtype=np.float64),
+            amplitude_scale=float(section["amplitude_scale"]),
+        )
+        for section in sections
     )
 
 
 def load_geometry_configuration(path: Path) -> GeometryConfiguration:
-    """Loads domain, receivers and source scenarios from geometry.toml.
+    """Loads domain, receivers and both source descriptions from geometry.toml.
 
     Args:
         path: Path to the file.
 
     Returns:
         The geometry settings.
-
-    Raises:
-        ValueError: If the file does not describe exactly two receivers.
     """
     document = read_toml_document(path)
     domain = document["domain"]
-    receiver_positions_xy_m = to_position_array(document["receivers"]["positions_xy_m"])
-    if receiver_positions_xy_m.shape[0] != 2:
-        raise ValueError("single-source localization requires exactly two receivers")
+    sources = document["sources"]
+    receiver_layout = load_receiver_layout_configuration(document["receivers"])
     return GeometryConfiguration(
         domain=DomainConfiguration(
             size_x_m=float(domain["size_x_m"]), size_y_m=float(domain["size_y_m"])
         ),
-        receiver_positions_xy_m=receiver_positions_xy_m,
-        true_source_positions_xy_m=to_position_array(
-            document["sources"]["true_positions_xy_m"]
-        ),
+        receiver_layout=receiver_layout,
+        receiver_positions_xy_m=receiver_layout.explicit_positions_xy_m,
+        true_source_positions_xy_m=to_position_array(sources["true_positions_xy_m"]),
+        concurrent_sources=load_concurrent_sources(sources["concurrent"]),
+        source_height_m=float(document["sources"]["height_m"]),
     )
 
 
@@ -458,6 +595,7 @@ def load_localization_configuration(path: Path) -> LocalizationConfiguration:
             near_singular_tolerance=float(triangulation["near_singular_tolerance"]),
             jacobian_step=float(triangulation["jacobian_step"]),
         ),
+        multi_source=load_multi_source_localization_configuration(document),
     )
 
 

@@ -1,0 +1,78 @@
+[bands]
+center_frequencies_hz = [125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0]
+filter_order = 4
+maximum_edge_fraction_of_nyquist = 0.99
+
+[window]
+duration_s = 0.5
+overlap_fraction = 0.5
+variance_floor_db2 = 1e-6
+independent_window_fraction = 0.6
+
+[delay_estimation]
+interpolation_factor = 16
+coherence_segment_sample_count = 8192
+minimum_analysis_frequency_hz = 50.0
+maximum_analysis_frequency_fraction_of_nyquist = 0.9
+
+[triangulation]
+domain_side_sign = 1.0
+near_singular_tolerance = 0.05
+jacobian_step = 1e-4
+
+[correlation]
+lowest_frequency_hz = 250.0
+highest_frequency_hz = 11000.0
+phase_transform_exponent = 0.7
+phase_transform_regularization = 1e-8
+use_analytic_envelope = true
+window_duration_s = 0.5
+window_overlap = 0.5
+maximum_absolute_lag_margin = 1.1
+peak_interpolation = "exponential"
+
+[fractional_bands]
+fraction_denominator = 3
+lowest_centre_hz = 250.0
+highest_centre_hz = 10000.0
+codec_cutoff_margin = 0.9
+minimum_band_signal_to_noise_ratio_db = 6.0
+filter_order = 4
+maximum_edge_fraction_of_nyquist = 0.99
+codec_detection_window_sample_count = 8192
+codec_detection_overlap_fraction = 0.5
+codec_detection_floor_drop_db = 50.0
+
+[steered_response_power]
+pooling = "max"
+pairwise_combinator = "product"
+coarse_grid_spacing_m = 2.0
+refinement_levels = 4
+refinement_factor = 4
+refinement_retained_fraction = 0.05
+low_frequency_seed_hz = 2000.0
+candidate_height_m = 0.5
+
+[deflation]
+method = "subspace_projection"
+maximum_source_count = 6
+peak_prominence_threshold_ratio = 0.35
+minimum_source_separation_m = 3.0
+residual_power_reduction_threshold = 0.02
+notch_width_s = 0.0001
+
+[refinement]
+maximum_gauss_newton_iterations = 30
+position_convergence_tolerance_m = 1e-4
+use_band_level_terms = true
+
+[windowed_clustering]
+enabled = true
+window_duration_s = 2.0
+window_overlap = 0.5
+clustering_radius_m = 8.0
+minimum_cluster_size = 3
+
+[localization_metrics]
+optimal_subpattern_assignment_cutoff_m = 20.0
+optimal_subpattern_assignment_order = 2.0
