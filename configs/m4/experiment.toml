@@ -1,0 +1,7 @@
+[experiment]
+name = "m4"
+title = "A compact ring of sources, ten to twenty of them"
+description = """Up to twenty sources scattered around a circle of radius 10 m at the domain
+centre, each within 3 m of that circle, seen by a ring of fifteen to
+twenty-five receivers 45 m out. Far tighter than m3: the closest pair is
+4.1 m at ten sources and 2.7 m at twenty, against 8 m on the m3 ring."""

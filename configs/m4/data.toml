@@ -1,0 +1,72 @@
+[recording]
+path = "data/raw_recordings/kaggle/videoplayback_01.wav"
+as_mono = true
+
+[segmentation]
+clip_duration_s = 2.5
+overlap_fraction = 0.0
+
+[output]
+metrics_directory = "results/metrics"
+metrics_filename = "m4_multi_source_localization.json"
+
+[excerpts]
+recording_directory = "data/raw_recordings/kaggle"
+recording_filenames = [
+    "videoplayback_02.wav",
+    "videoplayback (1)_14.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_13.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_13.wav",
+    "videoplayback_07.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_13.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav",
+    "videoplayback (1)_14.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_06.wav",
+    "videoplayback_07.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_16.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_19.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_13.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_13.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_16.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_19.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_16.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_13.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_16.wav",
+]
+recording_start_offsets_s = [
+    15.0,
+    37.5,
+    25.0,
+    7.5,
+    15.0,
+    12.5,
+    0.0,
+    40.0,
+    45.0,
+    7.5,
+    45.0,
+    15.0,
+    30.0,
+    17.5,
+    45.0,
+    5.0,
+    2.5,
+    10.0,
+    2.5,
+    30.0,
+]
+assignment_policy = "explicit"
+# Twenty non-overlapping 2.5 s windows, mutually decorrelated to 0.137, found
+# once by a greedy minimum-coherence search over the 280 windows the fourteen
+# named recordings yield. They are listed rather than searched for because
+# that search costs about ten minutes and would otherwise be repeated on
+# every run of every sweep cell. The order is the order the search chose, so
+# the first ten and the first fifteen are themselves the least coherent
+# subsets of their size: 0.121 at ten, 0.132 at fifteen, 0.137 at twenty.
+#
+# 2.5 s rather than 5 s because twenty windows do not decorrelate at 5 s: the
+# best subset of twenty measures 0.175 there, outside the target. The cost is
+# about nine accumulation windows per correlation.
+maximum_permitted_excerpt_coherence = 0.15
+selection_seed = 0

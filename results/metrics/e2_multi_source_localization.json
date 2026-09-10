@@ -1,0 +1,139 @@
+{
+  "achieved_excerpt_coherence": 0.025636746557414124,
+  "air_temperature_celsius": 15.0,
+  "assignment_policy": "explicit",
+  "clip_duration_s": 50.0,
+  "configuration_directory": "configs\\e2",
+  "deflation_method": "subspace_projection",
+  "delay_only_ellipse_semi_major_m": [
+    0.0011897507130231167,
+    0.0006455059874640564
+  ],
+  "delay_only_metrics": {
+    "detection_count": 2,
+    "estimated_source_count": 2,
+    "false_alarm_count": 0,
+    "matched_errors_m": [
+      0.000504978633675331,
+      6.768734799007876e-05
+    ],
+    "maximum_error_m": 0.000504978633675331,
+    "mean_error_m": 0.0002863329908327049,
+    "median_error_m": 0.0002863329908327049,
+    "missed_count": 0,
+    "optimal_subpattern_assignment_cutoff_m": 20.0,
+    "optimal_subpattern_assignment_m": 0.00036026726020173835,
+    "optimal_subpattern_assignment_order": 2.0,
+    "true_source_count": 2
+  },
+  "estimated_positions_xy_m": [
+    [
+      51.00003574965178,
+      51.00005747642539
+    ],
+    [
+      9.000495790045429,
+      27.000095893958736
+    ]
+  ],
+  "estimated_source_count": 2,
+  "level_fused_ellipse_semi_major_m": [
+    0.0011897509491469514,
+    0.0006455059830200581
+  ],
+  "level_fused_metrics": {
+    "detection_count": 2,
+    "estimated_source_count": 2,
+    "false_alarm_count": 0,
+    "matched_errors_m": [
+      0.0005050715266223743,
+      7.150080121580802e-05
+    ],
+    "maximum_error_m": 0.0005050715266223743,
+    "mean_error_m": 0.0002882861639190912,
+    "median_error_m": 0.0002882861639190912,
+    "missed_count": 0,
+    "optimal_subpattern_assignment_cutoff_m": 20.0,
+    "optimal_subpattern_assignment_m": 0.0003607004377452003,
+    "optimal_subpattern_assignment_order": 2.0,
+    "true_source_count": 2
+  },
+  "maximum_permitted_excerpt_coherence": 0.15,
+  "pairwise_combinator": "product",
+  "phase_transform_exponent": 0.7,
+  "pooling": "max",
+  "pressure_kpa": 101.325,
+  "random_seed": 0,
+  "receiver_layout": {
+    "center_x_fraction": 0.5,
+    "center_y_fraction": 0.5,
+    "count": 3,
+    "explicit_positions_xy_m": [],
+    "grid_spacing_m": 20.0,
+    "height_m": 1.5,
+    "layout": "ring",
+    "maximum_collinearity": 0.98,
+    "minimum_separation_m": 5.0,
+    "random_radius_m": 22.0,
+    "random_seed": 0,
+    "ring_radius_m": 22.0,
+    "ring_start_bearing_rad": 0.0
+  },
+  "receiver_positions_xyz_m": [
+    [
+      52.0,
+      30.0,
+      1.5
+    ],
+    [
+      19.000000000000007,
+      49.05255888325765,
+      1.5
+    ],
+    [
+      18.99999999999999,
+      10.947441116742354,
+      1.5
+    ]
+  ],
+  "recording_directory": "data\\raw_recordings\\kaggle",
+  "refined_positions_xy_m": [
+    [
+      51.0000379927239,
+      51.00006057158992
+    ],
+    [
+      9.000495836521258,
+      27.000096142556608
+    ]
+  ],
+  "relative_humidity_percent": 70.0,
+  "sample_rate_hz": 44100,
+  "signal_to_noise_ratio_db": null,
+  "source_recordings": [
+    "videoplayback_02.wav",
+    "videoplayback (1)_02.wav"
+  ],
+  "stop_reason": "peak_too_close_to_an_accepted_source",
+  "true_source_amplitude_scales": [
+    1.0,
+    1.0
+  ],
+  "true_source_positions_xy_m": [
+    [
+      9.0,
+      27.0
+    ],
+    [
+      51.0,
+      51.0
+    ]
+  ],
+  "windowed_clustering_centroids_xy_m": [
+    [
+      50.9985099871134,
+      50.99706024484536
+    ]
+  ],
+  "windowed_clustering_source_count": 1
+}

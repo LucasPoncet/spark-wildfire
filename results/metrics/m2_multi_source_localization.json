@@ -1,0 +1,196 @@
+{
+  "achieved_excerpt_coherence": 0.09707755123148534,
+  "air_temperature_celsius": 15.0,
+  "assignment_policy": "explicit",
+  "clip_duration_s": 50.0,
+  "configuration_directory": "configs\\m2",
+  "deflation_method": "subspace_projection",
+  "delay_only_ellipse_semi_major_m": [
+    0.00015032640872443805,
+    0.00014223030834372804,
+    0.00013855564202719137,
+    0.00012900905470030675
+  ],
+  "delay_only_metrics": {
+    "detection_count": 4,
+    "estimated_source_count": 4,
+    "false_alarm_count": 0,
+    "matched_errors_m": [
+      4.100123708026166e-05,
+      0.0004986226963512098,
+      0.0002418103598759496,
+      0.0003594362910016191
+    ],
+    "maximum_error_m": 0.0004986226963512098,
+    "mean_error_m": 0.00028521764607726004,
+    "median_error_m": 0.00030062332543878434,
+    "missed_count": 0,
+    "optimal_subpattern_assignment_cutoff_m": 20.0,
+    "optimal_subpattern_assignment_m": 0.00033089741317778514,
+    "optimal_subpattern_assignment_order": 2.0,
+    "true_source_count": 4
+  },
+  "estimated_positions_xy_m": [
+    [
+      24.999987682194728,
+      29.9999608927997
+    ],
+    [
+      75.00027097143126,
+      34.99958143211213
+    ],
+    [
+      50.00023444427258,
+      78.00005922949602
+    ],
+    [
+      61.99981726832119,
+      21.999690478464647
+    ]
+  ],
+  "estimated_source_count": 4,
+  "level_fused_ellipse_semi_major_m": [
+    0.0001503264047810583,
+    0.0001422303064647009,
+    0.0001385556398161689,
+    0.00012900905333867714
+  ],
+  "level_fused_metrics": {
+    "detection_count": 4,
+    "estimated_source_count": 4,
+    "false_alarm_count": 0,
+    "matched_errors_m": [
+      4.070252535008184e-05,
+      0.0004984730369090323,
+      0.00024167673094245575,
+      0.0003594347982296325
+    ],
+    "maximum_error_m": 0.0004984730369090323,
+    "mean_error_m": 0.00028507177285780057,
+    "median_error_m": 0.00030055576458604415,
+    "missed_count": 0,
+    "optimal_subpattern_assignment_cutoff_m": 20.0,
+    "optimal_subpattern_assignment_m": 0.00033080699832099846,
+    "optimal_subpattern_assignment_order": 2.0,
+    "true_source_count": 4
+  },
+  "maximum_permitted_excerpt_coherence": 0.15,
+  "pairwise_combinator": "product",
+  "phase_transform_exponent": 0.7,
+  "pooling": "max",
+  "pressure_kpa": 101.325,
+  "random_seed": 0,
+  "receiver_layout": {
+    "center_x_fraction": 0.5,
+    "center_y_fraction": 0.5,
+    "count": 6,
+    "explicit_positions_xy_m": [],
+    "grid_spacing_m": 25.0,
+    "height_m": 1.5,
+    "layout": "ring",
+    "maximum_collinearity": 0.98,
+    "minimum_separation_m": 5.0,
+    "random_radius_m": 45.0,
+    "random_seed": 0,
+    "ring_radius_m": 45.0,
+    "ring_start_bearing_rad": 0.0
+  },
+  "receiver_positions_xyz_m": [
+    [
+      95.0,
+      50.0,
+      1.5
+    ],
+    [
+      72.5,
+      88.97114317029974,
+      1.5
+    ],
+    [
+      27.50000000000001,
+      88.97114317029974,
+      1.5
+    ],
+    [
+      5.0,
+      50.00000000000001,
+      1.5
+    ],
+    [
+      27.49999999999998,
+      11.028856829700267,
+      1.5
+    ],
+    [
+      72.49999999999997,
+      11.028856829700246,
+      1.5
+    ]
+  ],
+  "recording_directory": "data\\raw_recordings\\kaggle",
+  "refined_positions_xy_m": [
+    [
+      24.999988090804777,
+      29.999961078712264
+    ],
+    [
+      75.00027061730312,
+      34.99958138126681
+    ],
+    [
+      50.00023443134077,
+      78.00005873319967
+    ],
+    [
+      61.99981695552085,
+      21.99969066507984
+    ]
+  ],
+  "relative_humidity_percent": 70.0,
+  "sample_rate_hz": 44100,
+  "signal_to_noise_ratio_db": null,
+  "source_excerpt_offsets_s": [
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "source_recordings": [
+    "videoplayback (1)_08.wav",
+    "videoplayback_19.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_16.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_19.wav"
+  ],
+  "stop_reason": "peak_too_close_to_an_accepted_source",
+  "true_source_amplitude_scales": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "true_source_positions_xy_m": [
+    [
+      25.0,
+      30.0
+    ],
+    [
+      75.0,
+      35.0
+    ],
+    [
+      50.0,
+      78.0
+    ],
+    [
+      62.0,
+      22.0
+    ]
+  ],
+  "windowed_clustering_centroids_xy_m": [
+    [
+      25.00008311170213,
+      29.99925199468085
+    ]
+  ],
+  "windowed_clustering_source_count": 1
+}

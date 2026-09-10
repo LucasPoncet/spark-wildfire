@@ -579,14 +579,39 @@ cross-correlations needs only receiver positions, an assumed speed of sound and
 the correlations themselves. No shared propagation leaf was required.
 
 **The notch takes everything under it; the projection takes only what the source
-explains.** That is the whole difference, and it is what makes the projection
-survive a power disparity — the documented failure mode of every method in this
-family.
+explains.** That is the whole difference, and neither is uniformly better. Which
+one to use depends on how far apart the sources are, and the two scenes disagree
+by design:
 
-**The template width must match the correlation peak.** Set five times too wide,
-the least-squares coefficient underestimates the peak, the projection leaves
-most of it behind, and the loop re-detects the source it just peeled off. This
-was observed, not predicted.
+| Scene | Sources | Method | Width | Outcome |
+|---|---|---|---|---|
+| `m1` | Two, 40 m apart, 6 dB gap | `subspace_projection` | `1e-4` | `K̂ = 2`, exact |
+| `m3` | Six, 8 m apart on a ring | `subspace_projection` | `1e-4` | `K̂ = 3` of 6 |
+| `m3` | Six, 8 m apart on a ring | `subspace_projection` | `5e-4` | `K̂ = 1` of 6 |
+| `m3` | Six, 8 m apart on a ring | `tdoa_notch` | `5e-4` | `K̂ = 6`, exact |
+
+**On a compact cluster the projection leaves structured residue and the notch
+does not.** The projection's coefficient is a least-squares fit of one template
+to the curve, and when neighbouring sources sit inside that template they inflate
+the fit, so it subtracts the wrong amount and leaves a peak sitting at the delay
+it just located. The residual map then peaks on that residue, the loop calls it a
+re-detection and stops. Widening the template makes this worse, not better,
+because it admits more neighbours into the fit: on `m3` it takes `K̂` from three
+down to one. The hard notch has no coefficient to get wrong — it clears the
+footprint outright — and recovers all six.
+
+**The separation stop rule is not what is binding there.** Dropping
+`minimum_source_separation_m` from 3 m to 0.5 m on `m3` changes nothing at all,
+which says the residual map peak lands within half a metre of a source already
+accepted. Neither the pairwise combinator nor the receiver count changes it
+either: `product` and `sum`, at six and eight receivers, all return the same
+three sources. Only the deflation method does.
+
+**So the guidance inverts with source separation.** Well separated and unequal in
+power, prefer the projection, which spares a weak neighbour the notch would take.
+Close together, prefer the notch, which clears residue the projection cannot.
+The published claim that the projection outperforms the notch is stated for the
+power-disparity case, and that is the case where it holds here too.
 
 **Documented ceiling, inherited:** the originators of the notch approach report
 that at three sources the noise in the correlation function becomes prohibitive.
@@ -607,9 +632,46 @@ against the map median, when the peak lands within `minimum_source_separation_m`
 of an accepted source, when `maximum_source_count` is reached, or when peeling
 stops removing correlation energy — and it reports which.
 
+**`minimum_source_separation_m` is a floor on what a scene may report, and it
+will be mistaken for a resolution limit if it is not set below the separations
+of interest.** Swept over two sources at 2, 4, 8 and 16 m with the shipped value
+of 3 m, the run returns `K̂ = 1` at 2 m and `K̂ = 2` everywhere above, at every
+receiver count from three to eight — which reads exactly like a resolution limit
+between 2 and 4 m that more receivers cannot fix. It is not one. Dropping the
+guard to 0.5 m resolves two sources **1 m apart to a millimetre**. The limit
+being measured was the configuration.
+
+Where the true limit lies is therefore still open: it is below one metre at
+20 dB in free field, and nothing here has found it.
+
 **A source's delays are read from its own neighbourhood of each curve,** not
 from each curve's global maximum, which in a mixture belongs to whichever source
 dominates that pair.
+
+**Three sources works, against the literature's prediction.** The deflation
+literature reports that at three sources the noise in the correlation function
+becomes prohibitive. On the `m2` scene — three equal-amplitude sources at least
+40 m apart, each carrying a genuinely decorrelated excerpt, rendered noiselessly
+through free field — the loop returns `K̂ = 3` with every position exact. That is
+the most favourable case there is, so it does not refute the ceiling; it locates
+it above three for well-separated, equal, decorrelated sources. `e2` shows the
+same at `K = 2, N = 3`.
+
+**A compact contour works too, once the deflation suits it.** On the `m3` ring —
+six sources 8 m apart on a circle of radius 8 m, eight receivers — the loop
+returns `K̂ = 6` with every point exact to a centimetre.
+
+Getting there took the finding in `source_deflation.py`: with the subspace
+projection the same scene returns three of six, and the three it misses are the
+far half of the ring. That is not the geometry failing. It is the projection
+leaving residue at the delay it just located, which the residual map then reads
+as the strongest remaining candidate. Neither the combinator, nor the receiver
+count, nor a six-fold tightening of the separation threshold moves it; switching
+to the hard notch recovers all six.
+
+The lesson generalises past this scene: **the source count a sequential loop can
+reach is set by how cleanly deflation removes what it has already found**, not by
+how many sources the map could in principle separate.
 
 **Extension → dense receiver selection:** when many receivers are available,
 select the subset with highest SNR or best geometric diversity. One additional
@@ -637,10 +699,30 @@ property fire does have is impulsivity: crackle is a sequence of transients, so
 within a short window one source frequently dominates outright, which is exactly
 the condition this needs.
 
-**It is the first thing a power disparity breaks.** On the `m1` scene, where the
-second source is 6 dB down, 48 of 49 windows land on the louder source and this
-route reports `K̂ = 1` where sequential deflation reports 2. That is the
-predicted behaviour, and it is reported rather than suppressed.
+**What breaks it is excerpt coherence, not power disparity.** That was not
+obvious, and the first measurements pointed the wrong way:
+
+| Scene | Sources | Excerpt coherence | Window split | Reported |
+|---|---|---|---|---|
+| `m1`, coherent excerpts | Two, second 6 dB down | 0.478 | 48 of 49 | `K̂ = 1` |
+| `m1`, decorrelated excerpts | Two, second 6 dB down | 0.026 | 35 / 14 | `K̂ = 2` |
+| `e2` | Two, equal amplitude | 0.026 | 97 of 99 | `K̂ = 1` |
+| `m2` | Four, equal amplitude | 0.097 | 47 of 49 | `K̂ = 1` |
+
+The same `m1` geometry and the same 6 dB disparity give `K̂ = 1` on excerpts that
+share waveform content and `K̂ = 2` on excerpts that do not. A power disparity was
+the predicted cause and it is not the binding one: the quieter source still wins
+fourteen windows outright once its excerpt is its own.
+
+`e2` and `m2` show the route is not simply reliable either — decorrelated
+excerpts, equal amplitudes, and one source still takes nearly every window. Two
+sources with a 6 dB gap split the windows; two and four equal ones do not, which
+is the opposite of what a power-disparity explanation predicts and is not
+currently explained.
+
+So this remains a cross-check to read alongside the sequential loop rather than
+a second opinion to trust on its own, and a disagreement is a question about the
+scene, not a verdict on `K̂`.
 
 ### `joint_position_refinement.py` ✅ implemented
 
@@ -713,8 +795,10 @@ spreads a step edge over about four bins however sharp the wall really is; the
 test asserts that and says why, rather than asserting something no windowed
 spectrum can deliver.
 
-Measured on `data/raw_recordings/kaggle/`: every one of the twenty files
-brickwalls at 15.0–15.7 kHz, confirming one common encoder.
+Measured over all sixty files of `data/raw_recordings/kaggle/`: every one
+brickwalls between 15.67 and 15.86 kHz, across all three provenances. One common
+encoder, and comfortably above the 10 kHz top band, so all seventeen
+third-octave centres from 250 Hz survive the codec rule.
 
 ### `usable_band_selector.py` ✅ implemented
 
@@ -729,7 +813,9 @@ grows with range. Dropping the band is cheaper than modelling that bias.
 
 ### `excerpt_coherence.py` ✅ implemented
 
-**Owns:** `compute_maximum_normalized_cross_correlation`,
+**Owns:** `compute_transform_length`, `prepare_excerpt_spectrum`,
+`compute_coherence_from_spectra`,
+`compute_maximum_normalized_cross_correlation`,
 `compute_pairwise_excerpt_coherence_matrix` and
 `compute_maximum_off_diagonal_coherence`.
 **Never:** Chooses excerpts.
@@ -738,17 +824,77 @@ The pre-flight guard. Two source excerpts that share waveform content put a peak
 into every receiver pair's cross-correlation at a lag no source occupies, and
 nothing downstream can tell that artefact from a real source.
 
+**The matrix transforms each row's excerpt once and reuses it.** A sixty-file
+pool is 1 770 pairs at three transforms of 2²³ samples each; sharing the row's
+forward transform is what keeps that a one-off Stage 0 cost rather than a
+per-run one. The numbers are unchanged, and a test pins each matrix entry
+against the pairwise function: zero-padding past the linear correlation length
+cannot move the peak or change its height.
+
 ### `source_excerpt_selector.py` ✅ implemented
 
-**Owns:** `SourceExcerpt`, `read_leading_excerpt`, `list_pool_recordings`,
+**Owns:** `SourceExcerpt`, `read_leading_excerpt`, `read_excerpt_at_offset`,
+`enumerate_pool_windows`, `list_pool_recordings`,
 `choose_least_coherent_indices` and `select_source_excerpts`, which raises when
 the chosen excerpts exceed the configured coherence limit.
 **Never:** Applies gain, propagation, or normalization.
 
-Three policies: `explicit` takes the configured order, `distinct_provenance`
-shuffles the pool under a seed and never reuses a file, `minimum_coherence`
-greedily picks the subset whose worst mutual coherence is smallest — the last is
-`O(n²)` in the pool size and is what the `m1` scene uses.
+Four policies:
+
+| Policy | What it picks | When it is the right one |
+|---|---|---|
+| `explicit` | The configured filenames, in order | A scene whose excerpts the audit has already chosen — fast and reproducible |
+| `distinct_provenance` | A seeded shuffle, never reusing a file | Sweeps that want a fresh draw per run |
+| `minimum_coherence` | The greedy subset of whole files with the smallest worst-case coherence | Finding a good set in a pool nobody has audited |
+| `distinct_windows` | The greedy subset of *non-overlapping windows* across the pool | More sources than the pool has independent files |
+
+**`distinct_windows` exists because of how these recordings are actually built.**
+The Stage 0 audit over all sixty files of `data/raw_recordings/kaggle/` puts the
+pool's structure beyond doubt — three provenances of twenty files, with the
+coherence blocked by provenance:
+
+| Block | Median | Minimum |
+|---|---|---|
+| A–A | 0.582 | 0.478 |
+| B–B | 0.907 | 0.884 |
+| C–C | 0.255 | 0.084 |
+| A–B, A–C, B–C | 0.023 to 0.027 | 0.020 |
+
+Across provenances the recordings are independent, at two to three per cent.
+Within one they are not: each provenance is one recording cut into twenty
+overlapping windows, and B's twenty are near-duplicates of each other. C is the
+exception — some of its files are far enough apart in the underlying recording
+to fall to 0.084.
+
+That fixes the ceiling at a 50 s clip length precisely. The greedy subset
+reaches **four** sources at 0.097, and a fifth jumps it to 0.244: one usable
+file from A, one from B, two from C. `m2` is built on exactly that set.
+
+Beyond four, whole files run out and `distinct_windows` is the way past it.
+Different windows of one recording carry different content, so shortening the
+clip buys sources, at the cost of accumulation windows in the correlation:
+
+| Clip | Candidate windows | K = 6 | K = 10 | K = 15 | K = 20 | K = 25 |
+|---|---|---|---|---|---|---|
+| 5 s | 140, from 14 files | 0.097 | 0.116 | 0.143 | 0.175 | 0.202 |
+| 2.5 s | 280, from 14 files | 0.108 | 0.121 | 0.132 | 0.136 | 0.152 |
+
+At 5 s the pool tops out at fifteen sources inside the 0.15 target; at 2.5 s it
+reaches twenty. `m3` needs six and uses 5 s; `m4` needs twenty and uses 2.5 s,
+which leaves about nine accumulation windows per correlation instead of the
+hundred and ninety-nine a 50 s clip gives.
+
+**A scene names the windows rather than searching for them.** The greedy search
+over 280 candidates costs about ten minutes, and a sweep would pay it again on
+every cell. `recording_start_offsets_s` lets `explicit` name a `(file, offset)`
+set, so `m4` selects in seconds. The list is written in the order the search
+chose it, which is what makes any prefix usable: the first ten and first fifteen
+of `m4`'s twenty are themselves least-coherent subsets of their size, at 0.121
+and 0.132.
+
+`minimum_coherence` is `O(n²)` in the pool size: sixty files at 50 s is 1 770
+pairs and about half an hour. That search belongs in the audit, run once, which
+is why every scene in `configs/` names its excerpts explicitly.
 
 ### `matched_filter_band_level.py` ✅ implemented
 
@@ -878,9 +1024,20 @@ Three new configuration blocks, all required, all present in every directory:
 | `localization.toml` | `[windowed_clustering]` | The cross-check's window, radius and minimum membership |
 | `localization.toml` | `[localization_metrics]` | Optimal sub-pattern assignment cutoff and order |
 
-**`configs/m1/` is the multi-source scene:** two sources at (30, 40) and
-(70, 65) with the second 6 dB down, heard by a ring of six receivers of radius
-45 m, each source carrying its own 50 s excerpt.
+**Five multi-source scenes ship in `configs/`:**
+
+| Scene | What it is | Why it exists |
+|---|---|---|
+| `m1` | Two sources, the second 6 dB down, six receivers | The power-disparity case. Its excerpts cannot meet the 0.15 target, and its configuration says so in a comment |
+| `m2` | Three equal sources, one recording provenance each, six receivers | The clean case: coherence 0.028, no power disparity, so `K = 3` is tested on its own |
+| `m3` | Six sources on a circle of radius 8 m, eight receivers | A burning contour rather than six fires. Excerpts are 5 s windows, which is what lets six decorrelate, and the deflation is the hard notch because a compact cluster needs it |
+| `e2` | Two sources, three receivers, 60 m domain | The ladder's own E2 scene, now readable by the multi-source pipeline. `N = 3` is the ambiguous baseline the plan says to report rather than hide |
+| `m4` | Up to twenty sources scattered through an annulus, fifteen to twenty-five receivers | A ragged front rather than a clean ring, and the scene the source-count and receiver-count sweep runs on |
+| `audit_pool` | The whole pool, `distinct_provenance` | A scratch scene for Stage 0 only; it localizes nothing |
+
+`e2`'s geometry is taken from the rest of its own directory rather than invented:
+the domain and receiver ring come from `mesh.toml` and `receiver.toml`, and the
+two sources sit at the ignition fractions `fire.toml` already declares.
 
 ### `simulation_context.py` ✅ implemented
 
@@ -1143,9 +1300,24 @@ figures. Takes `--configs <dir>` and nothing else.
 
 ### `run_localization_sweep.py` ✅ implemented
 
-Loops one scene over receiver count, signal-to-noise ratio, source separation,
-`β` and pairwise combinator, writing one metrics record per cell and the
-resolution curve.
+Loops one scene over receiver count, signal-to-noise ratio, **source count**,
+source separation, `β` and pairwise combinator, writing one metrics record per
+cell. `--source-counts` sounds the first `K` of the scene's sources, so one
+scene answers several `K` at once; `--source-separations-m` applies only to
+two-source cells and, left empty, keeps the scene's own positions.
+
+It draws whatever the swept grid supports: accuracy and stated precision against
+receiver count with one line per source count, the two-source resolution curve
+against separation, and the `K̂`-against-`K` confusion scatter, where a point off
+the diagonal is the failure the sweep exists to find.
+
+**Every cell also saves its own search map**, named for the whole cell rather
+than for the axes that grid happened to vary
+(`steered_response_power_map_n20_k15_snr20db_sepscene_beta0.7_product.svg`). A
+summary curve says a cell scored badly; only the map says whether the sources
+were merged, missed outright, or found somewhere else entirely, and a name that
+carries its own settings stays readable away from the command line that produced
+it.
 
 **This is the one script that imports another.** Reusing
 `run_multi_source_localization`'s run driver keeps a single definition of what a
@@ -1158,9 +1330,15 @@ them, which is the direction the dependency rule is about.
 ## `tests/`
 
 Mirror the `src/` tree, directory for directory: `tests/audio/`, `tests/config/`,
-`tests/spark/{acoustic,atmosphere,fields,fire,inverse,terrain}/`, `tests/utils/visualization/`.
+`tests/spark/{acoustic,atmosphere,fields,fire,inverse,terrain}/`, `tests/utils/{metrics,visualization}/`.
 Each test file tests one source file and is named after it. Cross-cutting architectural tests
 (such as the isolation guard) sit at the top level, since they belong to no single source file.
+
+`tests/scripts/` is the one directory with no `src/` counterpart. Runners hold no
+domain logic, but the sweep does hold the arithmetic that expands a command line
+into cells and reduces cells into curves, and both are silent when wrong: a
+mis-expanded grid runs an experiment nobody asked for and a mis-reduced series
+draws a figure that looks perfectly reasonable.
 Shared fixtures live in `tests/conftest.py` and load the real `configs/`, so the configuration
 files are exercised on every run rather than duplicated in test constants.
 
@@ -1179,8 +1357,8 @@ files are exercised on every run rather than duplicated in test constants.
 | `audio/test_codec_bandwidth_detector.py` ✅ | Synthetic brickwall recovered to the analysis window's skirt; a lower wall detected lower |
 | `audio/test_octave_band_filter.py` ✅ | `fraction_denominator = 1` reproduces the octave edges exactly; `= 3` matches the ISO third-octave series |
 | `audio/test_usable_band_selector.py` ✅ | A 15.5 kHz cutoff at 0.9 margin admits 10 kHz and rejects 12.5 kHz |
-| `audio/test_excerpt_coherence.py` ✅ | Identical excerpts score 1.0, independent noise near zero, the matrix is symmetric |
-| `audio/test_source_excerpt_selector.py` ✅ | Distinct-provenance never reuses a file; the coherence limit raises; minimum-coherence avoids a duplicated pair |
+| `audio/test_excerpt_coherence.py` ✅ | Identical excerpts score 1.0, independent noise near zero, the matrix is symmetric, and every matrix entry equals the pairwise function |
+| `audio/test_source_excerpt_selector.py` ✅ | Distinct-provenance never reuses a file; the coherence limit raises; minimum-coherence avoids a duplicated pair; an offset excerpt starts where it was asked to; distinct-windows feeds more sources than the pool holds files |
 | `audio/test_matched_filter_band_level.py` ✅ | Two sources at known gains: recovered level differences within 0.5 dB |
 | `spark/acoustic/test_receiver_layout.py` ✅ | Ring, grid and random honour the separation guard; a collinear array of three or more raises; two receivers skip that guard |
 | `spark/acoustic/test_free_field_propagation.py` ✅ | `n_sources = 1` matches the previous path to machine precision; two sources equal the sum of two single renders |
@@ -1195,6 +1373,7 @@ files are exercised on every run rather than duplicated in test constants.
 | `utils/metrics/test_localization_metrics.py` ✅ | Hungarian matching on a permuted set; a missed source priced at the cutoff, the same as a spurious one |
 | `utils/visualization/test_steered_response_power_plotter.py` ✅ | The map folds back into its grid; both figures survive having found nothing |
 | `utils/visualization/test_localization_error_plotter.py` ✅ | One line per series; a label mismatch raises |
+| `scripts/test_run_localization_sweep.py` ✅ | The grid is the product of every swept axis; an unswept axis falls back to the scene; a separation sweep moves two sources symmetrically and keeps their amplitudes; a series averages only its own cells; a cell slug distinguishes every axis and stays filename-safe |
 
 ---
 
@@ -1233,6 +1412,8 @@ All extensions in one table, sorted by likely implementation order.
 | Windowed-clustering cross-check on `K̂` | `windowed_position_clustering.py` | None | ✅ done |
 | Delay-and-level joint refinement | `joint_position_refinement.py` | None | ✅ done |
 | Optimal sub-pattern assignment scoring | `utils/metrics/localization_metrics.py` | None | ✅ done |
+| Windowed excerpt selection, past the one-file-per-provenance ceiling | `source_excerpt_selector.py` | None | ✅ done |
+| Source-count and receiver-count sweep with its figures | `run_localization_sweep.py`, `localization_error_plotter.py` | None | ✅ done |
 | Balbi 2020 fixed-point ROS | `rate_of_spread_equations.py` | None | If time allows |
 | Interpolated wind field | New file | None | If time allows |
 | Terrain-aware path loss | New wrapper file | None | If time allows |

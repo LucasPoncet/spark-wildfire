@@ -1,0 +1,7 @@
+[experiment]
+name = "m2"
+title = "Four concurrent sources, the most this pool can decorrelate"
+description = """Four fires sounding at once in a 100 m square, each carrying a 50 s
+excerpt, mutually decorrelated to 0.097 — the largest such set the recording
+pool offers at full clip length. Equal amplitudes, so the source count is
+tested without a power disparity confounding it."""

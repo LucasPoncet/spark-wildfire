@@ -1,0 +1,239 @@
+{
+  "achieved_excerpt_coherence": 0.11556003163433118,
+  "air_temperature_celsius": 15.0,
+  "assignment_policy": "distinct_windows",
+  "clip_duration_s": 5.0,
+  "configuration_directory": "configs\\m3",
+  "deflation_method": "tdoa_notch",
+  "delay_only_ellipse_semi_major_m": [
+    8.59794227422492e-05,
+    8.59771930510279e-05,
+    8.597941965878373e-05,
+    8.597952501401485e-05,
+    9.124396169902404e-05,
+    8.597733146207261e-05
+  ],
+  "delay_only_metrics": {
+    "detection_count": 6,
+    "estimated_source_count": 6,
+    "false_alarm_count": 0,
+    "matched_errors_m": [
+      0.0014187925571068057,
+      0.00010574141201420054,
+      0.0027806105445693733,
+      0.008780016453539732,
+      0.00027911659367151813,
+      0.0033571671336024168
+    ],
+    "maximum_error_m": 0.008780016453539732,
+    "mean_error_m": 0.0027869074490840078,
+    "median_error_m": 0.0020997015508380894,
+    "missed_count": 0,
+    "optimal_subpattern_assignment_cutoff_m": 20.0,
+    "optimal_subpattern_assignment_m": 0.004045431883147506,
+    "optimal_subpattern_assignment_order": 2.0,
+    "true_source_count": 6
+  },
+  "estimated_positions_xy_m": [
+    [
+      54.00010551254772,
+      56.92800695330774
+    ],
+    [
+      57.9987145231999,
+      49.999399565393645
+    ],
+    [
+      45.99973983688177,
+      43.072101100073084
+    ],
+    [
+      54.00318053925147,
+      43.07307458886688
+    ],
+    [
+      46.000016289289334,
+      56.930780562831444
+    ],
+    [
+      42.00049817879306,
+      49.99123412829123
+    ]
+  ],
+  "estimated_source_count": 6,
+  "level_fused_ellipse_semi_major_m": [
+    8.597942087113838e-05,
+    8.597719161483543e-05,
+    8.597941851133419e-05,
+    8.597952406037722e-05,
+    9.124396030168592e-05,
+    8.597733043508317e-05
+  ],
+  "level_fused_metrics": {
+    "detection_count": 6,
+    "estimated_source_count": 6,
+    "false_alarm_count": 0,
+    "matched_errors_m": [
+      0.001418901370854889,
+      0.00010569002177660051,
+      0.002780519203814384,
+      0.008779967474509778,
+      0.00027906920481977367,
+      0.0033571869309122924
+    ],
+    "maximum_error_m": 0.008779967474509778,
+    "mean_error_m": 0.0027868890344479526,
+    "median_error_m": 0.0020997102873346364,
+    "missed_count": 0,
+    "optimal_subpattern_assignment_cutoff_m": 20.0,
+    "optimal_subpattern_assignment_m": 0.004045412032729469,
+    "optimal_subpattern_assignment_order": 2.0,
+    "true_source_count": 6
+  },
+  "maximum_permitted_excerpt_coherence": 0.15,
+  "pairwise_combinator": "product",
+  "phase_transform_exponent": 0.7,
+  "pooling": "max",
+  "pressure_kpa": 101.325,
+  "random_seed": 0,
+  "receiver_layout": {
+    "center_x_fraction": 0.5,
+    "center_y_fraction": 0.5,
+    "count": 8,
+    "explicit_positions_xy_m": [],
+    "grid_spacing_m": 25.0,
+    "height_m": 1.5,
+    "layout": "ring",
+    "maximum_collinearity": 0.98,
+    "minimum_separation_m": 5.0,
+    "random_radius_m": 45.0,
+    "random_seed": 0,
+    "ring_radius_m": 45.0,
+    "ring_start_bearing_rad": 0.0
+  },
+  "receiver_positions_xyz_m": [
+    [
+      95.0,
+      50.0,
+      1.5
+    ],
+    [
+      81.81980515339464,
+      81.81980515339464,
+      1.5
+    ],
+    [
+      50.0,
+      95.0,
+      1.5
+    ],
+    [
+      18.180194846605364,
+      81.81980515339464,
+      1.5
+    ],
+    [
+      5.0,
+      50.00000000000001,
+      1.5
+    ],
+    [
+      18.180194846605353,
+      18.180194846605364,
+      1.5
+    ],
+    [
+      49.99999999999999,
+      5.0,
+      1.5
+    ],
+    [
+      81.81980515339463,
+      18.180194846605353,
+      1.5
+    ]
+  ],
+  "recording_directory": "data\\raw_recordings\\kaggle",
+  "refined_positions_xy_m": [
+    [
+      54.00010546797567,
+      56.92800684739445
+    ],
+    [
+      57.99871434930408,
+      49.99939968059477
+    ],
+    [
+      45.99973997026486,
+      43.07210131218053
+    ],
+    [
+      54.003180493516226,
+      43.07307478606352
+    ],
+    [
+      46.00001648696302,
+      56.93078047032403
+    ],
+    [
+      42.00049841857847,
+      49.99123419098006
+    ]
+  ],
+  "relative_humidity_percent": 70.0,
+  "sample_rate_hz": 44100,
+  "signal_to_noise_ratio_db": null,
+  "source_excerpt_offsets_s": [
+    15.0,
+    5.0,
+    35.0,
+    10.0,
+    20.0,
+    15.0
+  ],
+  "source_recordings": [
+    "videoplayback_02.wav",
+    "videoplayback (1)_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav"
+  ],
+  "stop_reason": "peak_too_close_to_an_accepted_source",
+  "true_source_amplitude_scales": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "true_source_positions_xy_m": [
+    [
+      58.0,
+      50.0
+    ],
+    [
+      54.0,
+      56.928
+    ],
+    [
+      46.0,
+      56.928
+    ],
+    [
+      42.0,
+      50.0
+    ],
+    [
+      46.0,
+      43.072
+    ],
+    [
+      54.0,
+      43.072
+    ]
+  ],
+  "windowed_clustering_centroids_xy_m": [],
+  "windowed_clustering_source_count": null
+}

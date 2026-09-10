@@ -61,3 +61,17 @@ def test_a_single_excerpt_has_no_off_diagonal_coherence() -> None:
 def test_an_empty_excerpt_list_is_rejected() -> None:
     with pytest.raises(ValueError, match="at least one excerpt"):
         compute_pairwise_excerpt_coherence_matrix([])
+
+
+def test_the_matrix_agrees_with_the_pairwise_function() -> None:
+    generator = np.random.default_rng(6)
+    excerpts = [generator.standard_normal(30000) for _ in range(4)]
+    matrix = compute_pairwise_excerpt_coherence_matrix(excerpts)
+    for first in range(4):
+        for second in range(first + 1, 4):
+            assert matrix[first, second] == pytest.approx(
+                compute_maximum_normalized_cross_correlation(
+                    excerpts[first], excerpts[second]
+                ),
+                abs=1e-12,
+            )

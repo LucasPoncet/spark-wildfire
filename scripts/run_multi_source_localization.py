@@ -253,6 +253,7 @@ def execute_run(configuration: SimulationConfiguration) -> MultiSourceRun:
         excerpts_configuration.maximum_permitted_excerpt_coherence,
         excerpts_configuration.selection_seed,
         configuration.data.recording.as_mono,
+        excerpts_configuration.recording_start_offsets_s,
     )
     sample_rate_hz = excerpts[0].sample_rate_hz
     receiver_positions_xyz_m = place_receivers_from_layout(
@@ -376,11 +377,13 @@ def print_run_report(
         )
     print(f"sources      : {len(geometry.concurrent_sources)}")
     for source_index, source in enumerate(geometry.concurrent_sources):
+        excerpt = run.excerpts[source_index]
+        offset_s = excerpt.start_sample_index / excerpt.sample_rate_hz
         print(
             f"               {source_index}: "
             f"({source.position_xy_m[0]:.1f}, {source.position_xy_m[1]:.1f}) m, "
             f"amplitude {source.amplitude_scale:.2f}, "
-            f"{run.excerpts[source_index].recording_path.name}"
+            f"{excerpt.recording_path.name} at {offset_s:.0f} s"
         )
     print(
         f"clip         : {configuration.data.segmentation.clip_duration_s:.0f} s at "
@@ -569,6 +572,10 @@ def build_metrics_document(
         "configuration_directory": str(configuration.configuration_directory),
         "recording_directory": str(configuration.data.excerpts.recording_directory),
         "source_recordings": [excerpt.recording_path.name for excerpt in run.excerpts],
+        "source_excerpt_offsets_s": [
+            excerpt.start_sample_index / excerpt.sample_rate_hz
+            for excerpt in run.excerpts
+        ],
         "assignment_policy": configuration.data.excerpts.assignment_policy,
         "maximum_permitted_excerpt_coherence": (
             configuration.data.excerpts.maximum_permitted_excerpt_coherence

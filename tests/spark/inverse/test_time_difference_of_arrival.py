@@ -12,6 +12,7 @@ from src.spark.inverse.receiver_pair_index import enumerate_receiver_pairs
 from src.spark.inverse.time_difference_of_arrival import (
     GeneralizedCrossCorrelationCurve,
     accumulate_generalized_cross_correlation_over_windows,
+    compute_delay_variance_s2,
     compute_generalised_cross_correlation_phat,
     compute_generalized_cross_correlation,
     compute_pair_correlation_curves,
@@ -346,3 +347,15 @@ def test_reading_near_a_prediction_finds_the_quieter_of_two_peaks(
     )
     assert global_estimate.delay_s == pytest.approx(loud_delay_s, abs=1e-5)
     assert local_estimate.delay_s == pytest.approx(quiet_delay_s, abs=1e-5)
+
+
+def test_zero_coherence_gives_a_finite_variance(sample_rate_hz: int) -> None:
+    """A fully deflated pair must weight itself out, not produce an infinity.
+
+    Deflation can leave a curve whose peak is no taller than its own median,
+    which reads as zero coherence. Dividing by that used to raise and return an
+    infinite variance, which then propagated into the weighted position fit.
+    """
+    variance_s2 = compute_delay_variance_s2(5000.0, 0.0, sample_rate_hz, 1.0, 16)
+    assert np.isfinite(variance_s2)
+    assert variance_s2 > compute_delay_variance_s2(5000.0, 0.9, sample_rate_hz, 1.0, 16)
