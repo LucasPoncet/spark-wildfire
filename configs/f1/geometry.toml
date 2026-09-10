@@ -1,0 +1,34 @@
+[domain]
+size_x_m = 60.0
+size_y_m = 60.0
+
+# Twenty receivers on a 25 m ring about the domain centre. Ring spacing is
+# 2*pi*25/20 = 7.85 m, comfortably past the crowding guard, and a full ring of
+# twenty is nowhere near the collinearity limit.
+[receivers]
+layout = "ring"
+count = 20
+ring_radius_m = 25.0
+ring_start_bearing_rad = 0.0
+center_x_fraction = 0.5
+center_y_fraction = 0.5
+grid_spacing_m = 25.0
+random_radius_m = 25.0
+random_seed = 0
+minimum_separation_m = 5.0
+maximum_collinearity = 0.98
+height_m = 1.5
+positions_xy_m = [[30.0, 5.0], [30.0, 55.0]]
+
+# This scene's sources are not configured: they are the burning cells the fire
+# engine produces, which change at every observation and are never known in
+# advance. Both keys below are required by the geometry loader and describe the
+# ignition point only, so that anything reading this directory generically has
+# a well-formed scene. The runner reads neither.
+[sources]
+true_positions_xy_m = [[30.0, 30.0]]
+height_m = 0.5
+
+[[sources.concurrent]]
+position_xy_m = [30.0, 30.0]
+amplitude_scale = 1.0

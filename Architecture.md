@@ -1063,7 +1063,7 @@ Three new configuration blocks, all required, all present in every directory:
 | `localization.toml` | `[windowed_clustering]` | The cross-check's window, radius and minimum membership |
 | `localization.toml` | `[localization_metrics]` | Optimal sub-pattern assignment cutoff and order |
 
-**Five multi-source scenes ship in `configs/`:**
+**The multi-source scenes that ship in `configs/`:**
 
 | Scene | What it is | Why it exists |
 |---|---|---|
@@ -1072,7 +1072,25 @@ Three new configuration blocks, all required, all present in every directory:
 | `m3` | Six sources on a circle of radius 8 m, eight receivers | A burning contour rather than six fires. Excerpts are 5 s windows, which is what lets six decorrelate, and the deflation is the hard notch because a compact cluster needs it |
 | `e2` | Two sources, three receivers, 60 m domain | The ladder's own E2 scene, now readable by the multi-source pipeline. `N = 3` is the ambiguous baseline the plan says to report rather than hide |
 | `m4` | Up to twenty sources around a circle of radius 10 m, fifteen to twenty-five receivers | A compact ring, far tighter than `m3`: closest pair 4.1 m at ten sources and 2.7 m at twenty. The scene the source-count and receiver-count sweep runs on |
+| `f1` | One spreading front on a 60 m domain, twenty receivers on a 25 m ring, ten 5 s windows | The only scene whose sources are not configured at all: they are whatever cells are alight, so the count changes every window and is never known in advance |
 | `audit_pool` | The whole pool, `distinct_provenance` | A scratch scene for Stage 0 only; it localizes nothing |
+
+**`f1` raises the wind to 12 m/s and that is the one number in it that is not a
+default.** The reason is measured. At the shipped 2 m/s the Balbi rate of spread
+is 0.020 m/s, so over the fifty seconds the scene runs the front moves one metre
+— two cells, a point source, no shape to estimate and nothing to see change
+between windows. At 12 m/s the rate is 0.245 m/s, the front reaches twelve
+metres across by `t = 50 s`, and the burning band is about ten cells thick, so
+`front_only` and `all_burning` genuinely differ. Fifty seconds of simulated fire
+is a short time; a scene that wants a shape out of it has to spread fast enough
+to grow one.
+
+**Its `minimum_source_separation_m` is a display budget, not a resolution
+claim,** and the warning recorded under `multiple_source_estimator.py` applies
+directly. The scene's own closest pair is one cell, 0.5 m. The guard is set to
+2 m anyway, to spread a handful of accepted points along a twelve-metre contour
+rather than stack them on its brightest few metres. Read against this scene it
+measures nothing about resolution.
 
 `e2`'s geometry is taken from the rest of its own directory rather than invented:
 the domain and receiver ring come from `mesh.toml` and `receiver.toml`, and the
@@ -1246,6 +1264,22 @@ difference.
 estimates and error ellipses — and `plot_windowed_position_clusters`, the
 per-window maxima with the clusters they formed.
 
+### `fire_shape_plotter.py` ✅ implemented
+
+**Owns:** `draw_receivers`, `draw_fire_panel`, `draw_map_panel` and
+`plot_fire_and_steered_response_power` — one frame carrying the true fire state
+on the left and the steered response power map on the right, on shared axes,
+with the burning contour drawn on both.
+**Never:** Runs an estimator, or saves anything.
+
+Composed from the two plotters that already own those panels rather than
+redrawing either, so `render_fire_state_rgb_image` and `reshape_map_to_grid`
+stay the single definition of what each panel looks like.
+
+**The true front is drawn on the map panel as well as the fire panel.** The
+question the frame exists to answer is whether the map's ridge sits on the
+contour, and that comparison cannot be made across two sets of axes.
+
 ### `localization_error_plotter.py` ✅ implemented
 
 **Owns:** `plot_metric_against_parameter`, the sweep curves, and
@@ -1337,6 +1371,34 @@ builds the receiver layout → renders the mixture → adds receiver noise →
 optional level fusion → matches against ground truth → writes metrics and
 figures. Takes `--configs <dir>` and nothing else.
 
+### `run_fire_shape_localization.py` ✅ implemented
+
+Loads `configs/` → runs the propagation-equation engine from a single ignition →
+every `observation_interval_s` extracts the radiating cells, gives each its own
+seeded broadband waveform, renders the whole front at once to the receiver
+layout and adds sensor noise → hands those waveforms to
+`localize_multiple_sources`, which is told nothing about how many cells produced
+them → writes one two-panel frame per window, the animation over them, and a
+metrics document. Takes `--configs <dir>` and `--max-observations <n>`.
+
+**The forward and inverse halves meet in memory here, not through a run
+directory.** Every other path from fire to estimate goes through
+`simulation_run_writer` and back; this one renders and localizes the same window
+in one process because there are ten windows and each is read once. The
+isolation rule is untouched — the estimator is handed waveforms and receiver
+positions, exactly as it is from a saved run.
+
+**The source count is not the deliverable and cannot be.** A front carries 38 to
+64 cells at `t = 50 s` and no sequential deflation loop recovers that many; the
+architecture's own measurements put the ceiling near ten. What the frames report
+is the map, whose ridge is the shape estimate, with the handful of accepted
+positions marked on it. The two numbers that score a window are therefore
+distance from each estimate to the nearest burning cell, and the share of the
+contour with an estimate within `FRONT_COVERAGE_RADIUS_M` of it. Neither is an
+optimal sub-pattern assignment, because there is no source set to assign
+against — one estimate sitting exactly on a twelve-metre front is accurate and
+says almost nothing about its shape.
+
 ### `run_localization_sweep.py` ✅ implemented
 
 Loops one scene over receiver count, signal-to-noise ratio, **source count**,
@@ -1358,10 +1420,12 @@ were merged, missed outright, or found somewhere else entirely, and a name that
 carries its own settings stays readable away from the command line that produced
 it.
 
-**This is the one script that imports another.** Reusing
+**Scripts may import one sibling script, and two do.** Reusing
 `run_multi_source_localization`'s run driver keeps a single definition of what a
-run is, so a sweep cell and a single run cannot drift apart. `scripts/` gained an
-`__init__.py` to make that import resolvable; nothing in `src/` imports either of
+run is, so a sweep cell and a single run cannot drift apart; for the same reason
+`run_fire_shape_localization` imports `run_acoustic_rendering`'s emission-model
+dispatch rather than restating which cells radiate. `scripts/` has an
+`__init__.py` to make those imports resolvable; nothing in `src/` imports any of
 them, which is the direction the dependency rule is about.
 
 ---
@@ -1413,6 +1477,8 @@ files are exercised on every run rather than duplicated in test constants.
 | `utils/visualization/test_steered_response_power_plotter.py` ✅ | The map folds back into its grid; both figures survive having found nothing |
 | `utils/visualization/test_localization_error_plotter.py` ✅ | One line per series; a label mismatch raises |
 | `scripts/test_run_localization_sweep.py` ✅ | The grid is the product of every swept axis; an unswept axis falls back to the scene; a separation sweep moves two sources symmetrically and keeps their amplitudes; a series averages only its own cells; a cell slug distinguishes every axis and stays filename-safe |
+| `scripts/test_run_fire_shape_localization.py` ✅ | The window clock lands exactly on its observation time and a step longer than the window does not overshoot it; distance is measured to the nearest burning cell; coverage counts the front and not the estimates, so two estimates on one cell do not read as two cells covered |
+| `utils/visualization/test_fire_shape_plotter.py` ✅ | The frame carries one panel each; both share the domain and the aspect ratio, without which the two shapes cannot be compared by eye; every estimate gets its own ellipse; the frame survives a window that located nothing |
 
 ---
 
@@ -1453,6 +1519,7 @@ All extensions in one table, sorted by likely implementation order.
 | Optimal sub-pattern assignment scoring | `utils/metrics/localization_metrics.py` | None | ✅ done |
 | Windowed excerpt selection, past the one-file-per-provenance ceiling | `source_excerpt_selector.py` | None | ✅ done |
 | Source-count and receiver-count sweep with its figures | `run_localization_sweep.py`, `localization_error_plotter.py` | None | ✅ done |
+| Fire shape from a spreading front, window by window | `run_fire_shape_localization.py`, `fire_shape_plotter.py` | None | ✅ done |
 | Balbi 2020 fixed-point ROS | `rate_of_spread_equations.py` | None | If time allows |
 | Interpolated wind field | New file | None | If time allows |
 | Terrain-aware path loss | New wrapper file | None | If time allows |
