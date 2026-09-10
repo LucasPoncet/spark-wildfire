@@ -1,0 +1,27 @@
+[recording]
+path = "data/raw_recordings/kaggle/videoplayback_01.wav"
+as_mono = true
+
+[segmentation]
+clip_duration_s = 50.0
+overlap_fraction = 0.0
+
+[output]
+metrics_directory = "results/metrics"
+metrics_filename = "m2_multi_source_localization.json"
+
+[excerpts]
+recording_directory = "data/raw_recordings/kaggle"
+recording_filenames = [
+    "videoplayback (1)_08.wav",
+    "videoplayback_19.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_16.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_19.wav",
+]
+assignment_policy = "explicit"
+# The largest mutually decorrelated set the pool offers at a 50 s clip
+# length: worst pair 0.097, inside the 0.15 target. Two provenances give one
+# usable file each and the third gives two; a fifth source would jump the
+# worst pair to 0.244. Found by the Stage 0 audit over all sixty files.
+maximum_permitted_excerpt_coherence = 0.15
+selection_seed = 0

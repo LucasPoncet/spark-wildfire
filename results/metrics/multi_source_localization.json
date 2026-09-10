@@ -1,64 +1,64 @@
 {
-  "achieved_excerpt_coherence": 0.4777967615059942,
+  "achieved_excerpt_coherence": 0.025636746557414124,
   "air_temperature_celsius": 15.0,
-  "assignment_policy": "minimum_coherence",
+  "assignment_policy": "explicit",
   "clip_duration_s": 50.0,
   "configuration_directory": "configs\\m1",
   "deflation_method": "subspace_projection",
   "delay_only_ellipse_semi_major_m": [
-    0.00012574545274389784,
-    0.00012997365739591903
+    0.00012997355527132507,
+    0.00012574565406956524
   ],
   "delay_only_metrics": {
     "detection_count": 2,
     "estimated_source_count": 2,
     "false_alarm_count": 0,
     "matched_errors_m": [
-      2.1314444237410363e-05,
-      0.0003943232309118557
+      0.00015076604337243055,
+      0.00036565863150693733
     ],
-    "maximum_error_m": 0.0003943232309118557,
-    "mean_error_m": 0.00020781883757463302,
-    "median_error_m": 0.00020781883757463302,
+    "maximum_error_m": 0.00036565863150693733,
+    "mean_error_m": 0.00025821233743968396,
+    "median_error_m": 0.00025821233743968396,
     "missed_count": 0,
     "optimal_subpattern_assignment_cutoff_m": 20.0,
-    "optimal_subpattern_assignment_m": 0.00027923566746559643,
+    "optimal_subpattern_assignment_m": 0.0002796753784566169,
     "optimal_subpattern_assignment_order": 2.0,
     "true_source_count": 2
   },
   "estimated_positions_xy_m": [
     [
-      29.99998673543105,
-      39.999983315973395
+      70.00024380171675,
+      64.99972748035354
     ],
     [
-      70.00029256965604,
-      64.99973562563135
+      29.999902262904993,
+      39.99988520513908
     ]
   ],
   "estimated_source_count": 2,
   "level_fused_ellipse_semi_major_m": [
-    0.00012574545150832983,
-    0.00012997365614847203
+    0.00012997355249056678,
+    0.0001257456526292734
   ],
   "level_fused_metrics": {
     "detection_count": 2,
     "estimated_source_count": 2,
     "false_alarm_count": 0,
     "matched_errors_m": [
-      2.1245688831380184e-05,
-      0.00039425323878570893
+      0.000150593508897948,
+      0.0003655999659560613
     ],
-    "maximum_error_m": 0.00039425323878570893,
-    "mean_error_m": 0.00020774946380854457,
-    "median_error_m": 0.00020774946380854457,
+    "maximum_error_m": 0.0003655999659560613,
+    "mean_error_m": 0.00025809673742700464,
+    "median_error_m": 0.00025809673742700464,
     "missed_count": 0,
     "optimal_subpattern_assignment_cutoff_m": 20.0,
-    "optimal_subpattern_assignment_m": 0.000279183627373581,
+    "optimal_subpattern_assignment_m": 0.00027959053992335784,
     "optimal_subpattern_assignment_order": 2.0,
     "true_source_count": 2
   },
-  "maximum_permitted_excerpt_coherence": 0.5,
+  "maximum_permitted_excerpt_coherence": 0.15,
   "pairwise_combinator": "product",
   "phase_transform_exponent": 0.7,
   "pooling": "max",
@@ -114,12 +114,12 @@
   "recording_directory": "data\\raw_recordings\\kaggle",
   "refined_positions_xy_m": [
     [
-      29.999986797602883,
-      39.99998335439985
+      70.00024347616217,
+      64.99972726809214
     ],
     [
-      70.00029234348905,
-      64.99973547986711
+      29.99990241288862,
+      39.999885304051446
     ]
   ],
   "relative_humidity_percent": 70.0,
@@ -127,7 +127,7 @@
   "signal_to_noise_ratio_db": null,
   "source_recordings": [
     "videoplayback_02.wav",
-    "videoplayback_10.wav"
+    "videoplayback (1)_02.wav"
   ],
   "stop_reason": "peak_too_close_to_an_accepted_source",
   "true_source_amplitude_scales": [
@@ -146,9 +146,13 @@
   ],
   "windowed_clustering_centroids_xy_m": [
     [
-      30.000651041666668,
-      40.000162760416664
+      69.99944196428571,
+      65.00323660714285
+    ],
+    [
+      30.0,
+      40.0
     ]
   ],
-  "windowed_clustering_source_count": 1
+  "windowed_clustering_source_count": 2
 }

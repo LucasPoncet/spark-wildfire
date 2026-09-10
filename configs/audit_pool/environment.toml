@@ -1,0 +1,4 @@
+[atmosphere]
+air_temperature_celsius = 15.0
+relative_humidity_percent = 70.0
+pressure_kpa = 101.325

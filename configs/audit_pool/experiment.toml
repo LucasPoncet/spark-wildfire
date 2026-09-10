@@ -1,0 +1,6 @@
+[experiment]
+name = "m1"
+title = "Two concurrent sources, six receivers"
+description = """Two fires sounding at once inside a 100 m square, each carrying its own
+50 s recording excerpt, heard by a ring of six receivers. The estimator is told
+neither how many sources there are nor where they sit."""

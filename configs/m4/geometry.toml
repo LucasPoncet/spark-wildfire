@@ -1,0 +1,133 @@
+[domain]
+size_x_m = 100.0
+size_y_m = 100.0
+
+[receivers]
+layout = "ring"
+count = 20
+ring_radius_m = 45.0
+ring_start_bearing_rad = 0.0
+center_x_fraction = 0.5
+center_y_fraction = 0.5
+grid_spacing_m = 20.0
+random_radius_m = 45.0
+random_seed = 0
+minimum_separation_m = 5.0
+maximum_collinearity = 0.98
+height_m = 1.5
+positions_xy_m = [[30.0, 0.0], [70.0, 0.0]]
+
+# Twenty sources scattered around a circle of radius 10 m about the domain
+# centre, staying within 3 m of it, so they sit at radii 7.4 to 12.9 m. The
+# centre is (50, 50) rather than the origin because the candidate grid and the
+# receiver layout are both built on [0, extent]: a circle about (0, 0) would put
+# three quarters of the sources outside the region the estimator can search.
+#
+# Ordered farthest-point first, so any prefix stays spread around the ring.
+# Closest pair by prefix: 4.11 m at ten sources, 3.59 m at fifteen,
+# 2.66 m at twenty.
+[sources]
+true_positions_xy_m = [
+    [39.05, 45.47],
+    [59.46, 56.46],
+    [54.56, 40.38],
+    [44.10, 60.70],
+    [40.47, 52.35],
+    [45.05, 41.83],
+    [58.23, 46.19],
+    [50.10, 59.44],
+    [55.04, 55.59],
+    [51.90, 37.25],
+    [48.57, 39.79],
+    [58.65, 50.11],
+    [59.06, 42.49],
+    [56.28, 59.16],
+    [47.53, 56.94],
+    [41.64, 42.75],
+    [60.26, 52.81],
+    [56.23, 43.32],
+    [53.75, 58.03],
+    [42.75, 58.41],
+]
+
+height_m = 0.5
+
+[[sources.concurrent]]
+position_xy_m = [39.05, 45.47]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [59.46, 56.46]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [54.56, 40.38]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [44.10, 60.70]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [40.47, 52.35]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [45.05, 41.83]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [58.23, 46.19]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [50.10, 59.44]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [55.04, 55.59]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [51.90, 37.25]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [48.57, 39.79]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [58.65, 50.11]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [59.06, 42.49]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [56.28, 59.16]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [47.53, 56.94]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [41.64, 42.75]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [60.26, 52.81]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [56.23, 43.32]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [53.75, 58.03]
+amplitude_scale = 1.0
+
+[[sources.concurrent]]
+position_xy_m = [42.75, 58.41]
+amplitude_scale = 1.0

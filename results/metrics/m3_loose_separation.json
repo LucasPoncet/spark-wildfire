@@ -1,0 +1,203 @@
+{
+  "achieved_excerpt_coherence": 0.11556003163433118,
+  "air_temperature_celsius": 15.0,
+  "assignment_policy": "distinct_windows",
+  "clip_duration_s": 5.0,
+  "configuration_directory": "C:\\Users\\boban\\AppData\\Local\\Temp\\claude\\C--Users-boban-spark-wildfire\\35e8419f-c214-4036-bc0c-985d5dc05fc6\\scratchpad\\m3_loose",
+  "deflation_method": "subspace_projection",
+  "delay_only_ellipse_semi_major_m": [
+    8.59794227422492e-05,
+    8.597927635622296e-05,
+    8.597744226088359e-05
+  ],
+  "delay_only_metrics": {
+    "detection_count": 3,
+    "estimated_source_count": 3,
+    "false_alarm_count": 0,
+    "matched_errors_m": [
+      0.0003262227079305793,
+      0.00010574141201420054,
+      0.0017548014223178977
+    ],
+    "maximum_error_m": 0.0017548014223178977,
+    "mean_error_m": 0.0007289218474208926,
+    "median_error_m": 0.0003262227079305793,
+    "missed_count": 3,
+    "optimal_subpattern_assignment_cutoff_m": 20.0,
+    "optimal_subpattern_assignment_m": 14.142135642569045,
+    "optimal_subpattern_assignment_order": 2.0,
+    "true_source_count": 6
+  },
+  "estimated_positions_xy_m": [
+    [
+      54.00010551254772,
+      56.92800695330774
+    ],
+    [
+      53.99824847195746,
+      43.07189286668135
+    ],
+    [
+      58.00014106922245,
+      50.00029414406274
+    ]
+  ],
+  "estimated_source_count": 3,
+  "level_fused_ellipse_semi_major_m": [
+    8.597942087113838e-05,
+    8.597927538327429e-05,
+    8.597744083622987e-05
+  ],
+  "level_fused_metrics": {
+    "detection_count": 3,
+    "estimated_source_count": 3,
+    "false_alarm_count": 0,
+    "matched_errors_m": [
+      0.00032625269477205837,
+      0.00010569002177660051,
+      0.0017548180539113472
+    ],
+    "maximum_error_m": 0.0017548180539113472,
+    "mean_error_m": 0.000728920256820002,
+    "median_error_m": 0.00032625269477205837,
+    "missed_count": 3,
+    "optimal_subpattern_assignment_cutoff_m": 20.0,
+    "optimal_subpattern_assignment_m": 14.14213564256944,
+    "optimal_subpattern_assignment_order": 2.0,
+    "true_source_count": 6
+  },
+  "maximum_permitted_excerpt_coherence": 0.15,
+  "pairwise_combinator": "product",
+  "phase_transform_exponent": 0.7,
+  "pooling": "max",
+  "pressure_kpa": 101.325,
+  "random_seed": 0,
+  "receiver_layout": {
+    "center_x_fraction": 0.5,
+    "center_y_fraction": 0.5,
+    "count": 8,
+    "explicit_positions_xy_m": [],
+    "grid_spacing_m": 25.0,
+    "height_m": 1.5,
+    "layout": "ring",
+    "maximum_collinearity": 0.98,
+    "minimum_separation_m": 5.0,
+    "random_radius_m": 45.0,
+    "random_seed": 0,
+    "ring_radius_m": 45.0,
+    "ring_start_bearing_rad": 0.0
+  },
+  "receiver_positions_xyz_m": [
+    [
+      95.0,
+      50.0,
+      1.5
+    ],
+    [
+      81.81980515339464,
+      81.81980515339464,
+      1.5
+    ],
+    [
+      50.0,
+      95.0,
+      1.5
+    ],
+    [
+      18.180194846605364,
+      81.81980515339464,
+      1.5
+    ],
+    [
+      5.0,
+      50.00000000000001,
+      1.5
+    ],
+    [
+      18.180194846605353,
+      18.180194846605364,
+      1.5
+    ],
+    [
+      49.99999999999999,
+      5.0,
+      1.5
+    ],
+    [
+      81.81980515339463,
+      18.180194846605353,
+      1.5
+    ]
+  ],
+  "recording_directory": "data\\raw_recordings\\kaggle",
+  "refined_positions_xy_m": [
+    [
+      54.00010546797567,
+      56.92800684739445
+    ],
+    [
+      53.99824844527808,
+      43.071893030572355
+    ],
+    [
+      58.000140898399536,
+      50.00029425917463
+    ]
+  ],
+  "relative_humidity_percent": 70.0,
+  "sample_rate_hz": 44100,
+  "signal_to_noise_ratio_db": null,
+  "source_excerpt_offsets_s": [
+    15.0,
+    5.0,
+    35.0,
+    10.0,
+    20.0,
+    15.0
+  ],
+  "source_recordings": [
+    "videoplayback_02.wav",
+    "videoplayback (1)_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav"
+  ],
+  "stop_reason": "peak_too_close_to_an_accepted_source",
+  "true_source_amplitude_scales": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "true_source_positions_xy_m": [
+    [
+      58.0,
+      50.0
+    ],
+    [
+      54.0,
+      56.928
+    ],
+    [
+      46.0,
+      56.928
+    ],
+    [
+      42.0,
+      50.0
+    ],
+    [
+      46.0,
+      43.072
+    ],
+    [
+      54.0,
+      43.072
+    ]
+  ],
+  "windowed_clustering_centroids_xy_m": [],
+  "windowed_clustering_source_count": null
+}

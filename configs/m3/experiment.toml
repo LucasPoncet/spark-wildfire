@@ -1,0 +1,9 @@
+[experiment]
+name = "m3"
+title = "A fire front as a ring of sources"
+description = """Six sources evenly spaced on a circle of radius 8 m, standing in for the
+burning contour of a spread fire rather than for six separate fires. The
+question is not whether the estimator finds six point sources but where the
+points it does find sit relative to the true ring, and how many of them it
+reports. Excerpts are non-overlapping 5 s windows, which is what lets six of
+them decorrelate below the 0.15 target from a pool of three provenances."""

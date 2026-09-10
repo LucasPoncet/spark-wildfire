@@ -178,8 +178,13 @@ class ExcerptConfiguration:
         recording_directory: Directory holding the candidate recordings.
         recording_filenames: Names to draw from, in order. Empty means every wav
             file in the directory.
-        assignment_policy: `explicit`, `distinct_provenance` or
-            `minimum_coherence`.
+        recording_start_offsets_s: Offset into each named recording, in seconds,
+            used by the `explicit` policy. Empty takes every excerpt from the
+            start, which is what a scene naming one whole file per source wants.
+            Naming offsets is how a scene records a window set the audit found,
+            so a run does not repeat the search.
+        assignment_policy: `explicit`, `distinct_provenance`,
+            `minimum_coherence` or `distinct_windows`.
         maximum_permitted_excerpt_coherence: Largest mutual waveform coherence a
             run accepts between two source excerpts.
         selection_seed: Seed making a shuffled assignment reproducible.
@@ -187,6 +192,7 @@ class ExcerptConfiguration:
 
     recording_directory: Path
     recording_filenames: tuple[str, ...]
+    recording_start_offsets_s: tuple[float, ...]
     assignment_policy: str
     maximum_permitted_excerpt_coherence: float
     selection_seed: int
@@ -430,6 +436,9 @@ def load_data_configuration(path: Path) -> DataConfiguration:
             recording_directory=Path(excerpts["recording_directory"]),
             recording_filenames=tuple(
                 str(value) for value in excerpts["recording_filenames"]
+            ),
+            recording_start_offsets_s=tuple(
+                float(value) for value in excerpts.get("recording_start_offsets_s", ())
             ),
             assignment_policy=str(excerpts["assignment_policy"]),
             maximum_permitted_excerpt_coherence=float(

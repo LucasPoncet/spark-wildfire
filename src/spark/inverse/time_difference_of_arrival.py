@@ -13,6 +13,7 @@ from src.config.simulation_configuration import DelayEstimationConfiguration
 from src.utils.array_types import BoolArray, ComplexArray, Float64Array, Int64Array
 
 MAXIMUM_COHERENCE: float = 0.999999
+MINIMUM_SIGNAL_TO_NOISE_RATIO: float = 1e-12
 SPECTRUM_FLOOR: float = 1e-12
 
 
@@ -154,6 +155,11 @@ def compute_delay_variance_s2(
 ) -> float:
     """Computes the delay variance from bandwidth, coherence and observation time.
 
+    A deflated curve can come back with a peak no taller than its own median,
+    which reads as zero coherence and would divide by zero here. The ratio is
+    floored instead, so such a pair returns a very large variance and is
+    weighted out of the position fit rather than poisoning it with an infinity.
+
     Args:
         effective_bandwidth_hz: Root-mean-square frequency of the cross-spectrum.
         magnitude_squared_coherence: Mean coherence, standing in for the ratio of
@@ -165,8 +171,10 @@ def compute_delay_variance_s2(
     Returns:
         Variance in seconds squared, floored at the sub-sample resolution.
     """
-    signal_to_noise_ratio = magnitude_squared_coherence / max(
-        1.0 - magnitude_squared_coherence, 1.0 - MAXIMUM_COHERENCE
+    signal_to_noise_ratio = max(
+        magnitude_squared_coherence
+        / max(1.0 - magnitude_squared_coherence, 1.0 - MAXIMUM_COHERENCE),
+        MINIMUM_SIGNAL_TO_NOISE_RATIO,
     )
     time_bandwidth_product = max(observation_duration_s * effective_bandwidth_hz, 1.0)
     standard_deviation_s = 1.0 / (

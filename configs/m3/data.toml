@@ -1,0 +1,27 @@
+[recording]
+path = "data/raw_recordings/kaggle/videoplayback_01.wav"
+as_mono = true
+
+[segmentation]
+clip_duration_s = 5.0
+overlap_fraction = 0.0
+
+[output]
+metrics_directory = "results/metrics"
+metrics_filename = "m3_multi_source_localization.json"
+
+[excerpts]
+recording_directory = "data/raw_recordings/kaggle"
+recording_filenames = [
+    "videoplayback_02.wav",
+    "videoplayback (1)_02.wav",
+    "y2mate.com - DD Ambience  Building on Fire  Blaze Inferno Wood Cracking Collapsing Loud Stressing_1_02.wav",
+]
+assignment_policy = "distinct_windows"
+# Six mutually decorrelated excerpts do not exist at 50 s in this pool: each
+# provenance is one looping recording, so whole files never fall below 0.478.
+# Non-overlapping 5 s windows carry different content and do: the greedy
+# subset of six measures 0.116, inside the target. The cost is about 19
+# accumulation windows per correlation instead of about 199.
+maximum_permitted_excerpt_coherence = 0.15
+selection_seed = 0

@@ -1,3 +1,4 @@
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -6,10 +7,13 @@ import soundfile as sf
 
 from src.audio.source_excerpt_selector import (
     DISTINCT_PROVENANCE_ASSIGNMENT,
+    DISTINCT_WINDOWS_ASSIGNMENT,
     EXPLICIT_ASSIGNMENT,
     MINIMUM_COHERENCE_ASSIGNMENT,
     choose_least_coherent_indices,
+    enumerate_pool_windows,
     list_pool_recordings,
+    read_excerpt_at_offset,
     read_leading_excerpt,
     select_source_excerpts,
 )
@@ -179,3 +183,129 @@ def test_the_greedy_subset_picks_the_least_coherent_pair() -> None:
 def test_a_subset_larger_than_the_pool_is_rejected() -> None:
     with pytest.raises(ValueError, match="fewer than the 3 sources requested"):
         choose_least_coherent_indices(np.eye(2), 3)
+
+
+def test_an_offset_excerpt_starts_where_it_was_asked_to(
+    tmp_path: Path, sample_rate_hz: int
+) -> None:
+    directory = tmp_path / "pool"
+    directory.mkdir(parents=True)
+    samples = 0.2 * np.random.default_rng(21).standard_normal(2 * sample_rate_hz)
+    path = directory / "one.wav"
+    sf.write(path, samples, sample_rate_hz)
+
+    offset = sample_rate_hz
+    excerpt = read_excerpt_at_offset(path, offset, CLIP_DURATION_S, True)
+    assert excerpt.start_sample_index == offset
+    assert excerpt.samples.size == round(CLIP_DURATION_S * sample_rate_hz)
+    assert np.allclose(
+        excerpt.samples, samples[offset : offset + excerpt.samples.size], atol=1e-4
+    )
+
+
+def test_an_offset_past_the_end_of_a_recording_is_rejected(
+    tmp_path: Path, sample_rate_hz: int
+) -> None:
+    path = write_pool(tmp_path / "pool", sample_rate_hz, 1)[0]
+    with pytest.raises(ValueError, match="ends before"):
+        read_excerpt_at_offset(path, 2 * sample_rate_hz, CLIP_DURATION_S, True)
+
+
+def test_the_pool_is_cut_into_non_overlapping_windows(
+    tmp_path: Path, sample_rate_hz: int
+) -> None:
+    paths = write_pool(tmp_path / "pool", sample_rate_hz, 2)
+    windows = enumerate_pool_windows(paths, CLIP_DURATION_S, True)
+    clip_sample_count = round(CLIP_DURATION_S * sample_rate_hz)
+    assert len(windows) == 2 * (2 * sample_rate_hz // clip_sample_count)
+    for path in paths:
+        offsets = [
+            window.start_sample_index
+            for window in windows
+            if window.recording_path == path
+        ]
+        assert offsets == sorted(offsets)
+        assert all(
+            later - earlier >= clip_sample_count for earlier, later in pairwise(offsets)
+        )
+
+
+def test_distinct_windows_can_feed_more_sources_than_there_are_files(
+    tmp_path: Path, sample_rate_hz: int
+) -> None:
+    """Why the policy exists at all.
+
+    A pool of two recordings offers two excerpts at full length, but many more
+    once each is cut into non-overlapping windows, which is what lets a scene
+    sound more sources than the pool holds files.
+    """
+    paths = write_pool(tmp_path / "pool", sample_rate_hz, 2)
+    excerpts = select_source_excerpts(
+        paths,
+        5,
+        CLIP_DURATION_S,
+        DISTINCT_WINDOWS_ASSIGNMENT,
+        PERMISSIVE_COHERENCE,
+        0,
+        True,
+    )
+    assert len(excerpts) == 5
+    assert len({(e.recording_path, e.start_sample_index) for e in excerpts}) == 5
+
+
+def test_explicit_offsets_name_a_window_set_without_searching(
+    tmp_path: Path, sample_rate_hz: int
+) -> None:
+    """How a scene records a window set the audit already found.
+
+    Naming one file three times with three offsets must give three different
+    excerpts, so a scene can sound more sources than the pool holds files
+    without repeating the coherence search on every run.
+    """
+    directory = tmp_path / "pool"
+    directory.mkdir(parents=True)
+    samples = 0.2 * np.random.default_rng(31).standard_normal(3 * sample_rate_hz)
+    path = directory / "one.wav"
+    sf.write(path, samples, sample_rate_hz)
+
+    excerpts = select_source_excerpts(
+        [path, path, path],
+        3,
+        CLIP_DURATION_S,
+        EXPLICIT_ASSIGNMENT,
+        PERMISSIVE_COHERENCE,
+        0,
+        True,
+        (0.0, 1.0, 2.0),
+    )
+    assert [excerpt.start_sample_index for excerpt in excerpts] == [
+        0,
+        sample_rate_hz,
+        2 * sample_rate_hz,
+    ]
+    assert not np.allclose(excerpts[0].samples, excerpts[1].samples)
+
+
+def test_naming_no_offsets_still_reads_from_the_start(
+    tmp_path: Path, sample_rate_hz: int
+) -> None:
+    paths = write_pool(tmp_path / "pool", sample_rate_hz, 2)
+    excerpts = select_source_excerpts(
+        paths, 2, CLIP_DURATION_S, EXPLICIT_ASSIGNMENT, PERMISSIVE_COHERENCE, 0, True
+    )
+    assert [excerpt.start_sample_index for excerpt in excerpts] == [0, 0]
+
+
+def test_too_few_named_offsets_is_rejected(tmp_path: Path, sample_rate_hz: int) -> None:
+    paths = write_pool(tmp_path / "pool", sample_rate_hz, 3)
+    with pytest.raises(ValueError, match="fewer than the 3 sources requested"):
+        select_source_excerpts(
+            paths,
+            3,
+            CLIP_DURATION_S,
+            EXPLICIT_ASSIGNMENT,
+            PERMISSIVE_COHERENCE,
+            0,
+            True,
+            (0.0, 0.5),
+        )

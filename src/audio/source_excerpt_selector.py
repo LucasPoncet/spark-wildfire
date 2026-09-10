@@ -8,11 +8,12 @@ from src.audio.excerpt_coherence import (
     compute_pairwise_excerpt_coherence_matrix,
 )
 from src.utils.array_types import Float64Array
-from src.utils.io.audio_file_reader import read_audio_file
+from src.utils.io.audio_file_reader import read_audio_file, read_audio_metadata
 
 EXPLICIT_ASSIGNMENT: str = "explicit"
 DISTINCT_PROVENANCE_ASSIGNMENT: str = "distinct_provenance"
 MINIMUM_COHERENCE_ASSIGNMENT: str = "minimum_coherence"
+DISTINCT_WINDOWS_ASSIGNMENT: str = "distinct_windows"
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,83 @@ def read_leading_excerpt(
         sample_rate_hz=sample_rate_hz,
         start_sample_index=0,
     )
+
+
+def read_excerpt_at_offset(
+    recording_path: Path,
+    start_sample_index: int,
+    clip_duration_s: float,
+    as_mono: bool,
+) -> SourceExcerpt:
+    """Reads one clip from anywhere inside a recording.
+
+    Args:
+        recording_path: File to read.
+        start_sample_index: Offset of the clip within the recording.
+        clip_duration_s: Clip length in seconds.
+        as_mono: Whether to average the channels down to one.
+
+    Returns:
+        The excerpt, cut to the requested duration.
+
+    Raises:
+        ValueError: If the recording ends before the clip does.
+    """
+    samples, sample_rate_hz = read_audio_file(recording_path, as_mono)
+    clip_sample_count = round(clip_duration_s * sample_rate_hz)
+    stop_sample_index = start_sample_index + clip_sample_count
+    if samples.size < stop_sample_index:
+        raise ValueError(
+            f"{recording_path} ends before a {clip_duration_s} s clip starting at "
+            f"{start_sample_index / sample_rate_hz:.1f} s does"
+        )
+    return SourceExcerpt(
+        recording_path=recording_path,
+        samples=np.asarray(samples[start_sample_index:stop_sample_index]),
+        sample_rate_hz=sample_rate_hz,
+        start_sample_index=start_sample_index,
+    )
+
+
+def enumerate_pool_windows(
+    recording_paths: list[Path], clip_duration_s: float, as_mono: bool
+) -> list[SourceExcerpt]:
+    """Cuts every recording in the pool into non-overlapping clips.
+
+    A pool whose files are overlapping cuts of one looping recording offers only
+    one usable excerpt per provenance at full clip length, which caps how many
+    sources a scene can sound. Shorter, non-overlapping windows carry different
+    content and so decorrelate where whole files do not, at the cost of fewer
+    accumulation windows in the correlation.
+
+    Args:
+        recording_paths: Candidate recordings.
+        clip_duration_s: Clip length in seconds.
+        as_mono: Whether to average the channels down to one.
+
+    Returns:
+        Every whole clip of every recording, in file then offset order.
+    """
+    windows: list[SourceExcerpt] = []
+    for path in recording_paths:
+        samples, sample_rate_hz = read_audio_file(path, as_mono)
+        clip_sample_count = round(clip_duration_s * sample_rate_hz)
+        for start_sample_index in range(
+            0, samples.size - clip_sample_count + 1, clip_sample_count
+        ):
+            windows.append(
+                SourceExcerpt(
+                    recording_path=path,
+                    samples=np.asarray(
+                        samples[
+                            start_sample_index : start_sample_index + clip_sample_count
+                        ]
+                    ),
+                    sample_rate_hz=sample_rate_hz,
+                    start_sample_index=start_sample_index,
+                )
+            )
+    return windows
 
 
 def list_pool_recordings(
@@ -136,6 +214,7 @@ def select_source_excerpts(
     maximum_permitted_excerpt_coherence: float,
     selection_seed: int,
     as_mono: bool,
+    recording_start_offsets_s: tuple[float, ...] = (),
 ) -> list[SourceExcerpt]:
     """Assigns one recording excerpt to each source and checks they are distinct.
 
@@ -143,10 +222,14 @@ def select_source_excerpts(
         recording_paths: Candidate recordings.
         source_count: Number of sources to feed.
         clip_duration_s: Excerpt length in seconds.
-        assignment_policy: `explicit`, `distinct_provenance` or `minimum_coherence`.
+        assignment_policy: `explicit`, `distinct_provenance`, `minimum_coherence`
+            or `distinct_windows`.
         maximum_permitted_excerpt_coherence: Largest mutual coherence a run accepts.
         selection_seed: Seed making a shuffled assignment reproducible.
         as_mono: Whether to average the channels down to one.
+        recording_start_offsets_s: Offset into each named recording, used by the
+            `explicit` policy to name a window set rather than search for one.
+            Empty takes every excerpt from the start.
 
     Returns:
         One excerpt per source.
@@ -158,7 +241,10 @@ def select_source_excerpts(
     """
     if source_count <= 0:
         raise ValueError("source_count must be positive")
-    if len(recording_paths) < source_count:
+    if (
+        assignment_policy != DISTINCT_WINDOWS_ASSIGNMENT
+        and len(recording_paths) < source_count
+    ):
         raise ValueError(
             f"the pool holds {len(recording_paths)} recordings, fewer than the "
             f"{source_count} sources requested"
@@ -166,27 +252,58 @@ def select_source_excerpts(
 
     if assignment_policy == EXPLICIT_ASSIGNMENT:
         selected_paths = recording_paths[:source_count]
+        if not recording_start_offsets_s:
+            excerpts = [
+                read_leading_excerpt(path, clip_duration_s, as_mono)
+                for path in selected_paths
+            ]
+        elif len(recording_start_offsets_s) < source_count:
+            raise ValueError(
+                f"the scene names {len(recording_start_offsets_s)} excerpt offsets, "
+                f"fewer than the {source_count} sources requested"
+            )
+        else:
+            excerpts = [
+                read_excerpt_at_offset(
+                    path,
+                    round(offset_s * read_audio_metadata(path)[0]),
+                    clip_duration_s,
+                    as_mono,
+                )
+                for path, offset_s in zip(
+                    selected_paths,
+                    recording_start_offsets_s[:source_count],
+                    strict=True,
+                )
+            ]
     elif assignment_policy == DISTINCT_PROVENANCE_ASSIGNMENT:
         order = np.random.default_rng(selection_seed).permutation(len(recording_paths))
-        selected_paths = [recording_paths[index] for index in order[:source_count]]
-    elif assignment_policy == MINIMUM_COHERENCE_ASSIGNMENT:
-        pool = [
-            read_leading_excerpt(path, clip_duration_s, as_mono)
-            for path in recording_paths
+        excerpts = [
+            read_leading_excerpt(recording_paths[index], clip_duration_s, as_mono)
+            for index in order[:source_count]
         ]
+    elif assignment_policy in (
+        MINIMUM_COHERENCE_ASSIGNMENT,
+        DISTINCT_WINDOWS_ASSIGNMENT,
+    ):
+        candidates = (
+            enumerate_pool_windows(recording_paths, clip_duration_s, as_mono)
+            if assignment_policy == DISTINCT_WINDOWS_ASSIGNMENT
+            else [
+                read_leading_excerpt(path, clip_duration_s, as_mono)
+                for path in recording_paths
+            ]
+        )
         indices = choose_least_coherent_indices(
             compute_pairwise_excerpt_coherence_matrix(
-                [excerpt.samples for excerpt in pool]
+                [candidate.samples for candidate in candidates]
             ),
             source_count,
         )
-        selected_paths = [pool[index].recording_path for index in indices]
+        excerpts = [candidates[index] for index in indices]
     else:
         raise ValueError(f"unknown excerpt assignment policy: {assignment_policy}")
 
-    excerpts = [
-        read_leading_excerpt(path, clip_duration_s, as_mono) for path in selected_paths
-    ]
     sample_rates_hz = {excerpt.sample_rate_hz for excerpt in excerpts}
     if len(sample_rates_hz) > 1:
         raise ValueError(

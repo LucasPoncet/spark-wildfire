@@ -12,12 +12,15 @@ metrics_filename = "multi_source_localization.json"
 
 [excerpts]
 recording_directory = "data/raw_recordings/kaggle"
-recording_filenames = []
-assignment_policy = "minimum_coherence"
-# 0.15 is the target. This pool cannot meet it at a 50 s excerpt length: every
-# one of its 190 pairs measures at least 0.478, because the twenty files are
-# overlapping cuts of one continuous recording. 0.50 is the measured floor of
-# this pool, recorded here so the run proceeds with the limitation stated rather
-# than hidden. Run scripts/run_source_excerpt_audit.py to reproduce the matrix.
-maximum_permitted_excerpt_coherence = 0.50
+recording_filenames = [
+    "videoplayback_02.wav",
+    "videoplayback (1)_02.wav",
+]
+assignment_policy = "explicit"
+# Two excerpts from different recording provenances, which measure 0.026
+# apart. This scene is about a power disparity and nothing else, so its
+# excerpts are decorrelated outright rather than at what one provenance
+# allows. Naming them keeps the run fast: minimum_coherence over the sixty
+# file pool is a tens-of-minutes search that belongs in the audit.
+maximum_permitted_excerpt_coherence = 0.15
 selection_seed = 0
