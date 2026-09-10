@@ -141,7 +141,17 @@ def resolve_display_settings(
 def main() -> None:
     """Build the simulation from a configuration directory and show it."""
     arguments = parse_arguments()
+    import tomllib
+
     config = load_forward_simulation_configuration(arguments.configs)
+
+    fire_toml_path = arguments.configs / "fire.toml"
+    print(f"DEBUG: fire.toml path = {fire_toml_path.resolve()}")
+    print(f"DEBUG: fire.toml exists = {fire_toml_path.exists()}")
+    with open(fire_toml_path, "rb") as file_handle:
+        raw_document = tomllib.load(file_handle)
+    print(f"DEBUG: raw parsed fire section = {raw_document['fire']}")
+    print(f"DEBUG: spread_engine_name = {config.fire.spread_engine_name!r}")
     context = build_simulation_context(config)
     burn_duration_s, time_step_s = resolve_display_settings(
         config, context, arguments.time_step_s

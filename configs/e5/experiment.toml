@@ -1,0 +1,4 @@
+[experiment]
+name = "e3"
+title = "E3 — one spreading front, receiver ring"
+description = "A distributed, moving source. The front is hundreds of cells wide by the end of the run, and a rate of spread becomes estimable from its travel."

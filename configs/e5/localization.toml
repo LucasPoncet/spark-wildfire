@@ -1,0 +1,21 @@
+[bands]
+center_frequencies_hz = [125.0, 250.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0]
+filter_order = 4
+maximum_edge_fraction_of_nyquist = 0.99
+
+[window]
+duration_s = 0.5
+overlap_fraction = 0.5
+variance_floor_db2 = 1e-6
+independent_window_fraction = 0.6
+
+[delay_estimation]
+interpolation_factor = 16
+coherence_segment_sample_count = 8192
+minimum_analysis_frequency_hz = 50.0
+maximum_analysis_frequency_fraction_of_nyquist = 0.9
+
+[triangulation]
+domain_side_sign = 1.0
+near_singular_tolerance = 0.05
+jacobian_step = 1e-4

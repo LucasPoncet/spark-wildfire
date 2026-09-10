@@ -19,12 +19,23 @@ Queries the mesh for neighbors and directions, queries the wind field for
 wind at each cell, applies probabilistic ignition. Never implements rate
 of spread physics itself — `rate_of_spread_engine.py` is the physically
 grounded alternative satisfying the same SpreadEngineProtocol.
+
+A fourth rule adds firebrand transport: a burning cell may, with low
+probability, project an ember (e.g. a burning pine cone fragment) a short
+distance downwind. If the ember lands on a flammable, never-ignited cell,
+that cell may ignite independently of the neighbor-driven rule above,
+producing rare spot fires ahead of the main front alongside the classic
+expanding ring. Landing cells are found with a `scipy.spatial.cKDTree`
+over `mesh.cell_positions_xyz`, since `MeshProtocol` only guarantees
+direct-neighbor connectivity and not arbitrary-distance nearest-cell
+queries.
 """
 
 from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
+from scipy.spatial import cKDTree
 
 from src.spark.fields.scalar_field_protocol import ScalarFieldProtocol
 from src.spark.fields.vector_field_protocol import VectorFieldProtocol
@@ -33,6 +44,38 @@ from src.spark.terrain.mesh_protocol import MeshProtocol
 
 WIND_SPEED_EPSILON_M_PER_S = 1e-9
 FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION = 1e-6
+
+
+def _rotate_vectors_about_z_axis(
+    vectors_xyz: npt.NDArray[np.float64], angles_rad: npt.NDArray[np.float64]
+) -> npt.NDArray[np.float64]:
+    """Rotate each vector about the z-axis by its own angle.
+
+    Used to jitter a wind direction laterally around the vertical axis.
+    The z-component is left unchanged, which is exact for horizontal
+    input vectors and a good approximation for the small elevation
+    changes typical of a fire spread domain.
+
+    Args:
+        vectors_xyz: Float64 array of shape (k, 3), vectors to rotate.
+        angles_rad: Float64 array of shape (k,), rotation angle per vector.
+
+    Returns:
+        Float64 array of shape (k, 3), the rotated vectors.
+    """
+    cosines = np.cos(angles_rad)
+    sines = np.sin(angles_rad)
+    x_component = vectors_xyz[:, 0]
+    y_component = vectors_xyz[:, 1]
+    z_component = vectors_xyz[:, 2]
+    return np.stack(
+        [
+            x_component * cosines - y_component * sines,
+            x_component * sines + y_component * cosines,
+            z_component,
+        ],
+        axis=1,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +108,23 @@ class CellularAutomatonSpreadEngineConfig:
             full (1.0) fuel density.
         ignition_probability_max: Hard cap on the per-neighbor ignition
             probability.
+        firebrand_launch_probability: Probability that a burning cell with
+            non-zero wind projects one firebrand over one
+            `probability_reference_time_step_s` of simulated time. Kept
+            low so spot fires stay rare next to the neighbor-driven front.
+        firebrand_jump_min_distance_m: Shortest distance, in metres, a
+            firebrand can travel from its launching cell. Set relative to
+            the mesh's own cell spacing so a jump clears at least the
+            immediate neighbor ring.
+        firebrand_jump_max_distance_m: Longest distance, in metres, a
+            firebrand can travel. Kept modest so spot fires land close to
+            the current front rather than anywhere in the domain.
+        firebrand_lateral_spread_rad: Half-angle, in radians, of the random
+            jitter applied around the downwind direction when launching a
+            firebrand.
+        firebrand_ignition_probability: Probability that a landed firebrand
+            ignites its landing cell, given that cell is flammable and has
+            never ignited. Independent of `base_ignition_probability`.
         random_seed: Seed for the engine's own random number generator,
             reset on every call to `initialize`.
     """
@@ -80,6 +140,11 @@ class CellularAutomatonSpreadEngineConfig:
     fuel_factor_base: float = 0.6
     fuel_factor_gain: float = 0.6
     ignition_probability_max: float = 0.98
+    firebrand_launch_probability: float = 0.01
+    firebrand_jump_min_distance_m: float = 2.0
+    firebrand_jump_max_distance_m: float = 10.0
+    firebrand_lateral_spread_rad: float = 0.35
+    firebrand_ignition_probability: float = 0.03
     random_seed: int | None = None
 
 
@@ -91,6 +156,7 @@ class _BoundDomain:
     wind_field: VectorFieldProtocol
     fuel_density_fraction: npt.NDArray[np.float64]
     is_flammable: npt.NDArray[np.bool_]
+    cell_position_tree: cKDTree
 
 
 class CellularAutomatonSpreadEngine:
@@ -139,6 +205,7 @@ class CellularAutomatonSpreadEngine:
             fuel_density_fraction=fuel_density_fraction,
             is_flammable=fuel_density_fraction
             > FUEL_DENSITY_IGNITION_THRESHOLD_FRACTION,
+            cell_position_tree=cKDTree(mesh.cell_positions_xyz),
         )
         return FireState(
             ignition_times_s=np.full(mesh.cell_count, np.inf, dtype=np.float64),
@@ -197,7 +264,7 @@ class CellularAutomatonSpreadEngine:
         )
 
     def step(self, state: FireState, dt: float) -> FireState:
-        """Advance the simulation by `dt` seconds, applying the three CA rules.
+        """Advance the simulation by `dt` seconds, applying the four CA rules.
 
         Rule 1: a burning cell whose burn duration has elapsed extinguishes.
         Rule 2: an unburnt, fuelled cell ignites with a probability that
@@ -205,6 +272,10 @@ class CellularAutomatonSpreadEngine:
             and wind blowing from those neighbors towards it.
         Rule 3: a cell that has ever ignited can never ignite again, which
             follows from only ever testing `~state.has_ignited`.
+        Rule 4: a burning cell may project a firebrand a short distance
+            downwind; if it lands on an unburnt, fuelled cell, that cell
+            may ignite independently of Rule 2, producing rare spot fires
+            ahead of the front.
 
         Args:
             state: The state to advance from.
@@ -276,7 +347,53 @@ class CellularAutomatonSpreadEngine:
 
         can_ignite = domain.is_flammable & ~state.has_ignited
         ignition_roll = self._random_number_generator.random(mesh.cell_count)
-        newly_ignited = can_ignite & (ignition_roll < probability_of_ignition)
+        newly_ignited_by_front = can_ignite & (ignition_roll < probability_of_ignition)
+
+        firebrand_launch_probability_per_actual_step = 1.0 - np.power(
+            1.0 - self._config.firebrand_launch_probability, time_step_ratio
+        )
+        can_launch_firebrand = is_burning_after_extinction & has_wind
+        firebrand_launch_roll = self._random_number_generator.random(mesh.cell_count)
+        is_launching_firebrand = can_launch_firebrand & (
+            firebrand_launch_roll < firebrand_launch_probability_per_actual_step
+        )
+        launching_cell_indices = np.flatnonzero(is_launching_firebrand)
+
+        newly_ignited_by_firebrand = np.zeros(mesh.cell_count, dtype=np.bool_)
+        if launching_cell_indices.size > 0:
+            jump_distances_m = self._random_number_generator.uniform(
+                self._config.firebrand_jump_min_distance_m,
+                self._config.firebrand_jump_max_distance_m,
+                size=launching_cell_indices.size,
+            )
+            lateral_jitter_rad = self._random_number_generator.uniform(
+                -self._config.firebrand_lateral_spread_rad,
+                self._config.firebrand_lateral_spread_rad,
+                size=launching_cell_indices.size,
+            )
+            launch_directions_xyz = _rotate_vectors_about_z_axis(
+                wind_unit_vectors_xyz[launching_cell_indices], lateral_jitter_rad
+            )
+            landing_positions_xyz = (
+                mesh.cell_positions_xyz[launching_cell_indices]
+                + launch_directions_xyz * jump_distances_m[:, None]
+            )
+            _, landing_cell_indices = domain.cell_position_tree.query(
+                landing_positions_xyz
+            )
+
+            can_ignite_from_firebrand = domain.is_flammable[
+                landing_cell_indices
+            ] & ~state.has_ignited[landing_cell_indices]
+            firebrand_ignition_roll = self._random_number_generator.random(
+                landing_cell_indices.size
+            )
+            ember_ignites = can_ignite_from_firebrand & (
+                firebrand_ignition_roll < self._config.firebrand_ignition_probability
+            )
+            newly_ignited_by_firebrand[landing_cell_indices[ember_ignites]] = True
+
+        newly_ignited = newly_ignited_by_front | newly_ignited_by_firebrand
 
         return FireState(
             ignition_times_s=np.where(
