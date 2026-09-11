@@ -785,6 +785,348 @@ phase ramp across each band and cancels part of the matched-filter projection;
 aligning to the nearest sample is enough, and the beamformer's own shifts are
 what to align by.
 
+### Fire characterisation — Tier 0 foundations
+
+Tier 0 of `Related_works/FIRE_CHARACTERIZATION_PLAN.md`. The plan's reframing is
+that deflation fits a **sparse point-source model** to a source that is
+genuinely **distributed** — a closed curve of radiating cells — and that the
+observed ten-source ceiling is where that mismatch binds rather than where the
+information runs out. Every characterisation tier therefore reads **the map**,
+not the accepted detections, and Tier 0 is what makes the map safe to read that
+way.
+
+Two map families now run from the same correlation curves. The detection family
+(`beta = 0.7`, product, in `[steered_response_power]`) is **untouched**, so every
+committed localisation result stays reproducible. The imaging family lives in
+`[imaging_map]` of `configs/<scene>/fire_characterization.toml` and is described
+as a set of *overrides* on the scene's own correlation and search settings
+rather than a second copy of them, so a scene that changes its whitening band
+changes it for both.
+
+#### `map_normalization.py` ✅ implemented
+
+**Owns:** `subtract_map_background`, `normalize_map_to_unit_mass` and
+`prepare_map_for_moments` — the single preparation path every moment in the
+package runs through.
+**Never:** Knows what produced the map.
+
+**That single path is load-bearing, not tidiness.** The extent stage differences
+two second moments, one from a frame and one from the analytic response, so any
+preparation applied to one and not the other appears as a bias in the
+difference rather than as a visible discrepancy.
+
+**Background subtraction is idempotent** because after one pass exactly the
+bottom `background_percentile` per cent of cells are zero, so the same
+percentile of the result is itself zero.
+
+#### `map_moments.py` ✅ implemented
+
+**Owns:** `MapMoments`, `compute_map_moments`, `compute_directional_third_moment`,
+`compute_directional_skewness` and `compute_skewness_over_directions`. Mass,
+centroid, second central moment with its principal axes, and the directional
+third moment.
+**Never:** Loops over grid points in Python.
+
+**Pulled forward from the plan's Tier 1.** Milestones 0.3 and 0.4 both need a
+centroid and a second moment, so the plan's ordering is not runnable as written;
+this is a genuine dependency rather than scope creep.
+
+**The plan lists the directional third moment as a `Callable` field on the
+result.** It is a free function here instead: a callable cannot be serialised
+into a metrics record and would be the only field in the package that is not
+data.
+
+**A ring of radius `R` has second central moment `R² / 2` on each axis**, so
+`R = √(2λ)`. That is what makes a front's radius recoverable from a map that
+never resolves the ring as a ring, and it is the relation the whole extent tier
+rests on, so it is pinned exactly by test rather than approximately.
+
+#### `steered_response_power_sequence.py` ✅ implemented
+
+**Owns:** `SteeredResponsePowerSequence`, `compute_imaging_grid_shape`,
+`compute_frame_start_indices`, `compute_steered_response_power_sequence`,
+`build_imaging_candidate_grid` and `reshape_sequence_map_to_grid`.
+**Never:** Searches coarse-to-fine — imaging wants one fixed grid at every
+frame so frames can be differenced and regressed against time.
+
+**Frames are cut from the waveforms, not from the maps.** The frame length sets
+both how far a moving front smears and how many correlation windows average into
+each curve, and those pull against each other, which is why it is configuration
+and why the speckle floor is measured against it rather than assumed.
+
+**A frame is timed at its centre**, which is the instant a linear fit over
+frames is unbiased about. A trailing partial frame is dropped rather than padded,
+matching `recording_segmenter`: a short frame averages fewer windows and would
+otherwise sit on the same axis as full ones with nothing marking it as noisier.
+
+**Named `reshape_sequence_map_to_grid`**, not `reshape_map_to_grid`, because the
+plotter already owns a function of that name which infers the grid from the
+positions of a single map; here the shape is known and carried on the sequence.
+
+#### `point_spread_function.py` ✅ implemented
+
+**Owns:** `compute_whitened_autocorrelation_kernel`,
+`build_point_spread_correlation_curves`, `compute_point_spread_function`,
+`compute_point_spread_covariance`, `build_point_spread_covariance_field` and
+`compute_point_spread_semi_axes_m`.
+**Never:** Requires a forward model — the response is fixed by array geometry,
+the whitening band, the speed of sound and the pooling, so this works unchanged
+on recorded data and belongs in `inverse/`.
+
+**Each pair's curve carries the level that pair would actually receive**, and
+that is only true because the imaging family stopped rescaling. Under a
+combinator that normalises every pair map before merging, pair amplitude
+cancels and an equally-weighted response is exact; under `unscaled_sum` it is
+not, because pairs contribute in proportion to what they hear. Leaving the
+weighting out cost 12 per cent on the response semi-axis at half the ring
+radius and 19 per cent at 0.85 of it, and took the analytic-against-rendered
+correlation to 0.94. Adding it returns 2 per cent and 0.9996.
+
+Two other explanations were measured and rejected first. Grid discretisation:
+refining from 0.5 m to 0.25 m, which takes the response from six cells across
+to twelve, made the agreement slightly *worse*. Spectral tilt from atmospheric
+absorption: that would widen the rendered response, and it was narrower. The
+scale is free-field spreading computed from receiver positions, which is
+geometry the estimator assumes, so `inverse/` still imports nothing from
+`acoustic/`.
+
+**The response is synthesised, not derived.** Rather than writing an analytic
+expression for the lobe, this builds the cross-spectrum a noiseless point source
+would produce and hands it to the *shipped* curve builder and the *shipped* grid
+evaluator. An analytic lobe would silently omit the analytic envelope, the lag
+truncation and the per-pair rescaling inside the combinator — and the extent
+stage subtracts this from an observed covariance, so each omission returns as a
+bias.
+
+**The phase transform exponent does not change the response of flat in-band
+content.** Whitening divides by the magnitude of the *mixture*, so `|X|^(1−β)`
+is constant across the band whatever `β` is. The exponent acts only through
+spectral non-flatness, which is a property of the sources present rather than of
+the array. Where that matters, a measured magnitude can be passed in.
+
+**The response is widest at the centre, not at the edge.** Measured on the
+twenty-receiver ring: 12.1 m semi-axis at the domain centre, about 8.0 m at half
+the ring radius and 8.8 m at 0.85 of it. The plan's expectation of a response
+that broadens towards the edge does not hold for the `sum` combinator, whose
+pairwise maps agree over a wide region at the centre of a symmetric array.
+
+**Measured, and it constrains Tier 2: the response width is set by the
+background percentile, not by the band.** Widening the correlation band fourfold
+moves the semi-axis by about two per cent; moving the percentile from 0 to 80
+moves it by a factor of three. The width of this map is a property of the array
+geometry and of the preparation, not of the correlation lobe. So
+`Σ_source = Σ_observed − Σ_psf` is only meaningful when both sides are prepared
+identically, and the shape factor must be calibrated at the percentile it will
+be applied at.
+
+**That percentile is what closed the bias failure, and it cuts the other way
+for the extent.** At 60 the response is wide enough that the domain boundary
+truncates it and drags the centroid 3.1 m over the region a fifty-second front
+occupies; at 98 the response is 1.5 m and the bias is 0.23 m. Splitting the two
+stages — a low percentile for the second moment, a high one for the first — was
+tried on the reasoning that a second moment *is* the tails a high percentile
+removes. It fails completely: at 60 the response semi-axis grows to between 7.5
+and 10.5 m, far faster than the front does, so `Σ_observed − Σ_psf` goes
+non-positive and every frame is correctly reported unresolved. The response has
+broader tails than a compact front, so lowering the percentile hands it more
+than it hands the fire. The configuration keeps the two fields separate, and on
+this scene they hold the same value.
+
+#### `centroid_bias_correction.py` ✅ implemented
+
+**Owns:** `CentroidBiasField`, `save_centroid_bias_field`,
+`load_centroid_bias_field`, `interpolate_bias_offset_xy_m`,
+`apply_centroid_bias_correction`, `compute_maximum_offset_magnitude_m` and
+`has_no_sign_flip_between_adjacent_nodes`.
+**Never:** Extrapolates outside the tabulated box — a position beyond it is
+clamped, because a bias already growing towards the boundary is least
+trustworthy exactly where extrapolation would amplify it.
+
+**A centroid bias masquerades as a bearing.** A response that is not symmetric
+about its source displaces the centroid of that source, and an uncorrected
+displacement growing with radius is indistinguishable from a fire spreading
+outward — the one thing the bearing tier exists to measure.
+
+**Measured, and larger than the plan expected.** On the twenty-receiver ring the
+bias is zero at the exact domain centre, which is a symmetry point of the
+imaging grid where it vanishes by construction rather than by merit; 0.86 m
+three and a half metres away; and about 3.1 m at ten to fifteen metres out,
+which is where a fifty-second front sits. The plan's GATE 0 line asks for under
+0.3 m at the centre, and read literally it passes on a symmetry artefact, so
+`run_tier0_report.py` reports the same threshold over the region a centroid can
+actually land in as well — and that line fails at 3.1 m.
+
+**Correction is iterated because the offset is a function of where the source
+is, not of where its centroid landed.** One subtraction only moves the lookup
+closer to the right place.
+
+### Fire characterisation — Tiers 1 and 2
+
+Bearing and rate of spread, both read off the imaging map rather than off any
+detection. Both work: on `configs/f1` the bearing lands within a degree and the
+head rate within twenty per cent of the Balbi physics that produced it.
+
+#### `fire_bearing.py` ✅ implemented
+
+**Owns:** `BearingEstimate`, `estimate_ignition_position_xy_m`,
+`estimate_bearing_from_centroid_drift`, `estimate_bearing_from_centroid_offset`,
+`estimate_bearing_from_skewness`, `estimate_bearing_from_principal_axis`,
+`fuse_bearing_estimates`, and the circular statistics they all run through.
+**Never:** Averages an angle linearly. The linear mean of 350 and 10 degrees is
+180, so every mean, spread and interval here is circular.
+
+**Measured on `configs/f1`:** centroid drift −0.67°, centroid offset a median
+0.85° per frame with every frame inside 10°, fused −0.65°, against a true
+bearing of 0°. The ignition point is estimated from the first frame's centroid
+at 0.52 m from truth, inside the plan's 1.0 m line, and nothing downstream is
+told where the fire actually started.
+
+**The plan has the skewness sign backwards, and it would have passed
+unnoticed.** Milestone 1.3 says to take the argmax of the directional skewness.
+A third moment points along a distribution's *long tail*, and concentrating
+mass toward the head leaves the tail behind it: on a ring whose downwind half
+is twice as bright, the skewness along the true bearing is −0.51 and along its
+reverse is +0.51. The argmax returns the bearing rotated by half a turn. Taking
+the argmin instead moves the per-frame error from 137° to under a degree.
+
+**`estimate_bearing_from_centroid_offset` is not in the plan and was added
+because the scene needed it.** It reads the direction from the estimated
+ignition point to the frame's centroid — a *first* moment where skewness is a
+third. A front that burns out behind itself sits downwind of its origin whether
+or not its head burns brighter, so this works on a source model with no
+intensity gradient at all, which is what the burning-cell model is.
+
+#### `fire_extent.py` ✅ implemented
+
+**Owns:** `ExtentEstimate` and `estimate_fire_extent`, computing
+`Sigma_source = Sigma_observed - Sigma_response` and turning its eigenvalues
+into semi-axes through the shape factor.
+**Never:** Clips a negative eigenvalue to zero and calls the result a
+measurement. A front smaller than the response along an axis returns
+`is_resolved = False`, `upper_bound_only = True` and the observed semi-axis as
+a ceiling — which on `configs/f1` happens on the first two frames and is
+verified honest, meaning those frames really were below the response.
+
+**The deconvolved semi-axis runs 19 to 43 per cent under truth**, worst when
+the fire is smallest and improving monotonically as it grows: the ratio of true
+to estimated falls 1.75, 1.50, 1.44, 1.40, 1.32, 1.26, 1.24 across the run.
+That is the plan's 25 per cent extent criterion failed on the early resolved
+frames, and it is what the head rate's residual error is made of.
+
+#### `fire_rate_of_spread.py` ✅ implemented
+
+**Owns:** `RateOfSpreadEstimate`, `project_head_and_back_m` and
+`estimate_rate_of_spread`. Head, back, centroid speed and expansion rate as
+Theil-Sen slopes against time, with a bootstrap interval on the head rate.
+**Never:** Fits on an unresolved frame, or on fewer than the configured
+minimum.
+
+**Measured on `configs/f1`:** head 0.2969 m/s against a true 0.2500 (18.7 per
+cent, inside the plan's 20), back 0.0858 against 0.1000 (14.2 per cent, inside
+its 40), on eight resolved frames of ten. The true head rate is itself a good
+check — Balbi at this scene's 12 m/s wind gives 0.245 m/s.
+
+**The closure residual is very nearly empty, and the plan oversells it three
+times over.** It is presented as a free check that catches a mis-scaled shape
+factor. It cannot: head and back are both built from one centroid and one
+semi-axis, so `head - back = 2 * semi_axis` identically, and substituting a
+reversed bearing or a rescaled semi-axis leaves the identity exactly satisfied.
+Theil-Sen does not generally distribute over a sum, but it does whenever either
+addend is exactly linear — and two quadratic series make every pairwise slope a
+monotone function of `t_i + t_j`, so both medians fall on the same pair and
+curvature does not disturb it either. What remains is a residual that departs
+from zero only when the two series disagree about which pair carries the median
+slope, which takes irregularity rather than shape. Four tests pin each
+narrowing. It is kept because it costs one subtraction, and reported for what
+it is.
+
+### Fire characterisation — Tier 3
+
+Front position: where the burning edge is in every direction it covers. Read
+three ways on the same frames, because the plan's own gate asks whether the
+free-form route beats the parametric one and says to prefer the parametric fit
+and report it if not.
+
+**Two measurements reshaped this tier before any of it was written.**
+
+*The radiating front is an open arc, never a closed contour.* Measured at all
+ten observations of `configs/f1`, it spans about ninety degrees with a
+two-hundred-and-seventy degree gap: the fire burns out behind itself, so the
+upwind perimeter stops radiating. That invalidates three of the plan's
+prescriptions at once — the two-lobe model has no back lobe to find, a closed
+elliptical perimeter would place front across the silent three quarters, and an
+enclosed-area intersection over union is undefined because neither contour
+encloses anything.
+
+*The response is shift-invariant to between 0.935 and 0.966* across the fire's
+own region. A shift-variant operator needs a response evaluated at every cell
+at eight seconds each — thirty-two hours — so the deconvolution is
+transform-based about a single centred response, and that approximation now
+carries its measured fidelity.
+
+#### `front_radial_profile.py` ✅ implemented
+
+**Owns:** `sample_map_bilinear`, `extract_radial_profile`,
+`build_two_lobe_model`, `estimate_front_distance_by_matched_filter`,
+`build_band_model` and `estimate_front_band_by_matched_filter`.
+**Never:** Reads a distance off the profile's maximum. The response is a metre
+and a half wide and the front a few metres across, so a smeared peak sits
+wherever two lobes overlap.
+
+**A single lobe finds the band's centre, and a head distance means its leading
+edge.** The first run under-read by a nearly constant 1.5 m, which happens to
+equal the response semi-axis — and adding that would have passed the gate.
+Measuring it on synthetic bands disproved the explanation: the shortfall tracks
+the *band's own half-width* exactly (3.50 against 3.53, 2.00 against 2.03, 0.50
+against 0.52) and is completely independent of the response, identical at 0.8,
+1.5 and 2.5 m. The two coincided only because this scene's band is about 1.5 m
+wide along the bearing. Fitting both edges instead recovers the leading edge to
+0.03 m on synthetic data and took the worst error on the fire from 1.89 m to
+0.87 m, inside the gate.
+
+**The band's edges are soft for the same reason the perimeter is rendered
+bilinearly.** A hard box is piecewise constant in its own edges at the sampling
+resolution, so the finite-difference Jacobian is exactly zero and the optimiser
+reports success without leaving its seed.
+
+#### `front_perimeter_fit.py` ✅ implemented
+
+**Owns:** `PerimeterParameters`, `PerimeterFit`, `render_perimeter_density`,
+`compute_front_distance_by_angle` and `fit_front_perimeter`. An elliptical arc
+with its angular support fitted, rendered and blurred through the same operator
+the deconvolution uses so both are scored on identical terms.
+**Never:** Deposits a rendered sample into the nearest cell. That made the
+whole objective piecewise constant and the first fit returned its seed with
+`converged = True`; bilinear deposition and an explicit difference step fixed
+it.
+
+#### `map_deconvolution.py` ✅ implemented
+
+**Owns:** `PointSpreadOperator`, `build_point_spread_operator`,
+`apply_operator`, `apply_operator_transpose`, `deconvolve_richardson_lucy`,
+`compute_total_variation_drag`, `deconvolve_with_total_variation` and
+`compute_l_curve`.
+**Never:** Materialises the operator. The dense matrix is 14400 squared, about
+1.6 GB, and even an on-the-fly matvec is that much arithmetic per iteration.
+
+Total variation is physically motivated rather than generic here: only the
+perimeter radiates and the interior is silent, so the true support is
+one-dimensional.
+
+#### `front_contour.py` ✅ implemented
+
+**Owns:** `compute_contour_distance_by_angle`, `extract_front_contour` and
+`compute_angular_coverage_fraction`. Extraction is radial rather than by
+marching squares, so a direction the front does not cover reports none instead
+of being invented.
+
+**And that is where the free-form route fails.** A level-set contour of a blob
+always closes, so the deconvolution claims every direction while the truth
+covers about thirty per cent — visible in the records as the coverage agreement
+equalling the true coverage exactly, frame after frame. The union is three
+times the truth's sector before any radius is considered, which caps the
+overlap near 0.3 and measures 0.07.
+
 ---
 
 ## `src/audio/` — real audio preprocessing
@@ -1007,6 +1349,7 @@ Implemented for the localization pipeline: `BandConfiguration`, `WindowConfigura
 | `geometry.toml` | Domain size, receiver positions, true source positions |
 | `forward_model.toml` | Reference distance, receiver-noise SNR and on/off, random seed |
 | `localization.toml` | Octave bands, analysis window, delay estimation, triangulation guards |
+| `fire_characterization.toml` | Imaging map family, array response calibration, bearing, extent, spread model and front settings |
 | `mesh.toml` | Domain extent, cell spacing, 4- or 8-connectivity |
 | `wind.toml` | Wind speed and bearing |
 | `fire.toml` | Fuel preset, ignition point, run length, CFL safety factor, emission model |
@@ -1264,6 +1607,38 @@ difference.
 estimates and error ellipses — and `plot_windowed_position_clusters`, the
 per-window maxima with the clusters they formed.
 
+### `map_linearity_plotter.py` ✅ implemented
+
+**Owns:** `build_series_label` and `plot_map_linearity_audit` — one panel per
+source count, the normalised residual against the phase transform exponent, one
+line per combinator and pooling rule, with the acceptance target as a rule.
+
+**The residual is plotted rather than the correlation.** Correlation saturates
+near one long before a map is additive enough to deconvolve; a figure showing
+every family at 0.99 would suggest the choice does not matter, and the whole
+audit exists because it does.
+
+### `point_spread_plotter.py` ✅ implemented
+
+**Owns:** `plot_point_spread_calibration` — the centroid bias field as arrows,
+the response width field as a heat map, and the analytic-against-rendered
+agreement at the validated positions.
+
+Arrows are drawn at their own scale, not the axes', because the offsets are
+sub-metre over a sixty-metre domain. What the panel is for is the *pattern*: a
+field that grows outward and turns with the geometry is being sampled
+correctly, one that changes direction between neighbours is noise being
+tabulated.
+
+### `speckle_floor_plotter.py` ✅ implemented
+
+**Owns:** `plot_speckle_floor` — map grain against frame duration on log axes,
+with the configured duration marked.
+
+Only one side of the trade is visible in it. A longer frame averages more
+correlation windows and lowers the floor; it also smears a moving front over
+further ground, which no single-frame measurement can show.
+
 ### `fire_shape_plotter.py` ✅ implemented
 
 **Owns:** `draw_receivers`, `draw_fire_panel`, `draw_map_panel` and
@@ -1279,6 +1654,16 @@ stay the single definition of what each panel looks like.
 **The true front is drawn on the map panel as well as the fire panel.** The
 question the frame exists to answer is whether the map's ridge sits on the
 contour, and that comparison cannot be made across two sets of axes.
+
+### `fire_characterization_plotter.py` ✅ implemented
+
+**Owns:** `plot_fire_characterization` — the per-frame bearing against its
+truth with the fused answer as a rule, beside the extent series with the array
+response drawn alongside it and resolved frames marked apart from ceilings.
+
+The response line is on the extent panel because an extent below it is not a
+measurement, and a figure should say where that line falls rather than leave
+the reader to infer it.
 
 ### `localization_error_plotter.py` ✅ implemented
 
@@ -1371,6 +1756,62 @@ builds the receiver layout → renders the mixture → adds receiver noise →
 optional level fusion → matches against ground truth → writes metrics and
 figures. Takes `--configs <dir>` and nothing else.
 
+### `run_map_linearity_audit.py` ✅ implemented
+
+Tier 0, Milestone 0.2. Renders each source alone, renders them together, and
+reports how far the joint map is from the sum of the individual ones, sweeping
+the source count, the phase transform exponent, the combinator and the pooling
+rule. Writes `results/metrics/tier0_map_linearity.json`. Takes `--configs` and
+one flag per swept axis.
+
+**The sweep is coarse and the gate is fine.** Linearity is measured on a 2 m
+grid for cost, then the chosen family is re-measured at the imaging spacing. The
+two are *not* equal — the finer grid resolves more of the structure the maps
+disagree about — so the coarse sweep ranks families and the fine measurement is
+what a gate is read against. That was checked rather than assumed, and the
+assumption it replaced was wrong.
+
+**Renders are noiseless on purpose.** Receiver noise is common to the joint
+render and absent from the individual ones, so it would appear as a linearity
+failure having nothing to do with how the map is formed.
+
+### `run_point_spread_calibration.py` ✅ implemented
+
+Tier 0, Milestones 0.3 and 0.4. Tabulates the response covariance and the
+centroid offset across the domain and writes both to `results/calibration/`,
+plus `results/metrics/tier0_point_spread_calibration.json`.
+
+**The fields are analytic and the shortcut is earned rather than assumed.** A
+rendered node costs a twenty-channel propagation plus a one-hundred-and-ninety
+pair correlation before any map is formed; the analytic node costs the map
+alone, which is the difference between half an hour and most of a day. What
+earns it is rendering point sources at three validation positions and reporting
+how well the analytic response reproduces them — the check GATE 0 asks for. If
+that agreement fails the fields are still written and the report says they are
+not trustworthy; it does not quietly substitute something else.
+
+### `run_tier0_report.py` ✅ implemented
+
+Assembles GATE 0. Reads what the audit and the calibration wrote, measures the
+speckle floor against frame duration, evaluates every criterion against its
+stated number, and writes `results/metrics/tier0_foundations.json`.
+
+**Nothing here adapts a target to what was measured.** The plan is explicit that
+a failed gate is a finding to record rather than a threshold to move, so a
+criterion that fails is reported as failing and the run still writes its report.
+Where a criterion turned out to be readable in a way that passes trivially — the
+centroid bias at a symmetry point — the plan's own threshold is applied a second
+time somewhere it means something, rather than the threshold being changed.
+
+**The speckle floor does not trade against frame duration, which the plan
+assumed it would.** Differencing two disjoint frames separates the deterministic
+sidelobe structure from the estimation noise, and the random part is 0.4 % of
+the floor at 4 s while the floor itself is flat from 0.5 s to 8 s. The random
+part does fall as `1/sqrt(T)` — 4.4-fold across a 16-fold change in duration —
+it is simply negligible against what it is competing with. So the frame duration
+is set by front smearing alone, and Tier 1 can shorten it for temporal
+resolution at almost no cost in map quality.
+
 ### `run_fire_shape_localization.py` ✅ implemented
 
 Loads `configs/` → runs the propagation-equation engine from a single ignition →
@@ -1398,6 +1839,30 @@ contour with an estimate within `FRONT_COVERAGE_RADIUS_M` of it. Neither is an
 optimal sub-pattern assignment, because there is no source set to assign
 against — one estimate sitting exactly on a twelve-metre front is accurate and
 says almost nothing about its shape.
+
+### `run_fire_characterization.py` ✅ implemented
+
+Tiers 1 and 2. Runs the fire, images every window with the imaging family,
+reduces each to its moments, and reports bearing and rate of spread against
+ground truth. Takes `--configs`, `--max-observations` and
+`--background-percentile`.
+
+**The array response is evaluated at each frame's own centroid** rather than
+interpolated from the calibration field. Ten frames cost ten responses, which
+is cheaper than the field and exact where the field would interpolate. The
+response *map* is computed once per frame and its moments taken at whichever
+percentiles the two stages need.
+
+### `run_front_characterization.py` ✅ implemented
+
+Tier 3. Reads every frame's imaging map three ways — a matched filter on one
+radial profile, a parametric elliptical arc, and a free-form deconvolution —
+and scores each against the cells that were actually alight. Writes
+`results/metrics/tier3_front_position.json`.
+
+**The angular sweep is the whole circle and the front covers a quarter of it**,
+so coverage is a measured output on both sides rather than an assumption on
+either.
 
 ### `run_localization_sweep.py` ✅ implemented
 
@@ -1478,6 +1943,29 @@ files are exercised on every run rather than duplicated in test constants.
 | `utils/visualization/test_localization_error_plotter.py` ✅ | One line per series; a label mismatch raises |
 | `scripts/test_run_localization_sweep.py` ✅ | The grid is the product of every swept axis; an unswept axis falls back to the scene; a separation sweep moves two sources symmetrically and keeps their amplitudes; a series averages only its own cells; a cell slug distinguishes every axis and stays filename-safe |
 | `scripts/test_run_fire_shape_localization.py` ✅ | The window clock lands exactly on its observation time and a step longer than the window does not overshoot it; distance is measured to the nearest burning cell; coverage counts the front and not the estimates, so two estimates on one cell do not read as two cells covered |
+| `spark/inverse/test_map_normalization.py` ✅ | Unit mass after normalisation; background subtraction is idempotent and zeroes exactly its own share of the frame; preparation is invariant to the input's overall scale |
+| `spark/inverse/test_map_moments.py` ✅ | **A ring of radius `R` has variance `R²/2` per axis and is recovered by the `√2` shape factor exactly** — the relation the extent tier rests on; four point masses give their closed-form covariance; a sampled Gaussian recovers its own standard deviations; the skewness sweep finds the brighter side of an asymmetric ring to within a degree |
+| `spark/inverse/test_steered_response_power_sequence.py` ✅ | Frame starts advance by the hop and a trailing partial frame is dropped; each frame is timed at its own centre; every frame of a stationary source peaks on it; a frame folds back into the grid it came from |
+| `spark/inverse/test_point_spread_function.py` ✅ | **Every synthesised curve peaks at the delay the steering table predicts** — the sign convention, which if mirrored would silently invert every covariance subtracted downstream; the response peaks on the cell its source sits in; **the response width is set by the background percentile and not by the band**, asserted so that finding cannot quietly change |
+| `spark/inverse/test_map_linearity.py` ✅ | Interval pooling is linear in the curve under `sum` and `mean` and is not under `max`; **the per-pair rescaling inside the combinator is what breaks additivity even when the pooling beneath it is linear**; the product is further from additive than the sum |
+| `spark/inverse/test_centroid_bias_correction.py` ✅ | A linear field is interpolated exactly between nodes and clamped outside them; a uniform bias is removed exactly and a position-dependent one to its own second order; iterating beats a single subtraction; an alternating field is reported as noise rather than tabulated |
+| `config/test_fire_characterization_configuration.py` ✅ | Every section loads; the imaging pooling names a rule the map code actually accepts and is not point sampling; the imaging overrides replace the exponent, combinator and grid while leaving the detection band alone |
+| `scripts/test_run_map_linearity_audit.py` ✅ | Sources are placed evenly on a ring of the requested radius; the comparison ignores overall scale and reports an empty map as infinitely far off; the selection reads the sweep at the gate's source count and takes the smallest residual |
+| `utils/visualization/test_map_linearity_plotter.py` ✅ | One panel per source count and one line per series plus the target rule; residuals reach the axis in ascending exponent order; mismatched columns raise |
+| `utils/visualization/test_point_spread_plotter.py` ✅ | One panel per field plus the validation; one bar per checked position; a node grid that does not match its shape raises |
+| `utils/visualization/test_speckle_floor_plotter.py` ✅ | The curve carries every measured point on log axes; the configured duration is marked and named |
+| `spark/inverse/test_fire_bearing.py` ✅ | A translating map gives its own direction to a degree, at four bearings; a map that has not moved is refused rather than guessed; **taking the argmax of the skewness returns the reverse bearing**, pinned so the plan's sign cannot come back; a uniform ring reports no lean while an asymmetric one does; a zero weight keeps a method out of the fusion and opposed inputs report a low resultant |
+| `spark/inverse/test_fire_extent.py` ✅ | A blurred annulus is recovered to within 5 per cent at three radii; subtracting the response is what makes it accurate; a source below the response returns `upper_bound_only` with a bound that contains the truth and never a clipped zero |
+| `spark/inverse/test_fire_rate_of_spread.py` ✅ | A linear series returns the rates it was built from; one bad early frame does not move them, which is why the slopes are Theil-Sen; unresolved frames are left out; **and four tests establish that the closure residual survives a reversed bearing, a mis-scaled semi-axis, a curving centroid and a curving semi-axis** — it moves only under irregularity |
+| `utils/metrics/test_fire_front_ground_truth.py` ✅ | Head, back and bearing correct on a hand-built cell mask and on an arc at four bearings; a ring recovers its radius through the shape factor; collinear cells fall back to counting rather than raising |
+| `utils/metrics/test_bearing_metrics.py` ✅ | An error across the wrap is the short way round; a summary counts the frames inside each tolerance; agreement is measured circularly too |
+| `utils/metrics/test_spread_metrics.py` ✅ | The true rate is fitted robustly; a zero truth reports no relative error rather than an infinite one; an unresolved frame above the response is reported as merely conservative rather than honest |
+| `utils/visualization/test_fire_characterization_plotter.py` ✅ | Both panels run on one clock; resolved frames are drawn apart from ceilings; a run with nothing resolved still draws |
+| `spark/inverse/test_front_radial_profile.py` ✅ | A two-lobed map gives back both distances and a map with no trailing lobe is reported one-sided; **the band model recovers the leading edge across every band width and response width, and a one-lobe fit falls short by exactly the band's half-width** — the measurement that ruled out correcting it with a response width |
+| `spark/inverse/test_front_perimeter_fit.py` ✅ | The ray-ellipse solve is exact on circles, rotated ellipses and an offset origin; directions outside the fitted sector carry no distance; a rendered arc carries unit mass and a fit recovers the arc it was given |
+| `spark/inverse/test_map_deconvolution.py` ✅ | A point source blurs to the response itself and the operator conserves mass; **the transpose is the adjoint**, which Richardson-Lucy needs to converge at all; a blurred annulus comes back at its own radius; total variation smooths a noisy recovery and a zero weight recovers the plain iteration exactly |
+| `spark/inverse/test_front_contour.py` ✅ | A closed shape is covered everywhere and **an arc reports no front where it has none**; the extractor finds a finite-width ring's outer half-maximum crossing rather than its centre |
+| `utils/metrics/test_contour_metrics.py` ✅ | Hausdorff catches one stray point; the radial error skips directions only one side covers; **the sector overlap reduces to the plan's enclosed-area ratio when both contours close** and charges for coverage one side lacks |
 | `utils/visualization/test_fire_shape_plotter.py` ✅ | The frame carries one panel each; both share the domain and the aspect ratio, without which the two shapes cannot be compared by eye; every estimate gets its own ellipse; the frame survives a window that located nothing |
 
 ---
@@ -1520,6 +2008,12 @@ All extensions in one table, sorted by likely implementation order.
 | Windowed excerpt selection, past the one-file-per-provenance ceiling | `source_excerpt_selector.py` | None | ✅ done |
 | Source-count and receiver-count sweep with its figures | `run_localization_sweep.py`, `localization_error_plotter.py` | None | ✅ done |
 | Fire shape from a spreading front, window by window | `run_fire_shape_localization.py`, `fire_shape_plotter.py` | None | ✅ done |
+| Fire characterisation Tier 0: imaging map family, moments, array response, bias field | `inverse/map_normalization.py`, `inverse/map_moments.py`, `inverse/steered_response_power_sequence.py`, `inverse/point_spread_function.py`, `inverse/centroid_bias_correction.py` | None | ✅ done |
+| Fire characterisation Tier 1: bearing | `inverse/fire_bearing.py`, `utils/metrics/fire_front_ground_truth.py`, `utils/metrics/bearing_metrics.py` | None | ✅ done |
+| Fire characterisation Tier 2: rate of spread | `inverse/fire_extent.py`, `inverse/fire_rate_of_spread.py`, `utils/metrics/spread_metrics.py` | None | ✅ done |
+| Fire characterisation Tier 2 extension: Richards elliptical model fit | `inverse/elliptical_spread_model.py` | None | Not needed yet; the moment path already meets the gate |
+| Fire characterisation Tier 3: front position | `inverse/front_radial_profile.py`, `inverse/front_perimeter_fit.py`, `inverse/map_deconvolution.py`, `inverse/front_contour.py`, `utils/metrics/contour_metrics.py` | None | ✅ built; head distance works, contours do not |
+| Fire characterisation Tier 3 extension: a contour model that can be open | `inverse/front_contour.py` | None | Next — a level set always closes, which is what caps the overlap |
 | Balbi 2020 fixed-point ROS | `rate_of_spread_equations.py` | None | If time allows |
 | Interpolated wind field | New file | None | If time allows |
 | Terrain-aware path loss | New wrapper file | None | If time allows |
