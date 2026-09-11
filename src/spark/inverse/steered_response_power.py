@@ -22,6 +22,7 @@ from src.config.multi_source_localization_configuration import (
     PRODUCT_COMBINATOR,
     SUM_COMBINATOR,
     SUM_POOLING,
+    UNSCALED_SUM_COMBINATOR,
     SteeredResponsePowerConfiguration,
 )
 from src.spark.inverse.time_difference_of_arrival import (
@@ -281,6 +282,11 @@ def combine_pairwise_maps(
     The product instead requires every pair to agree, and the harmonic mean sits
     between the two while suppressing sidelobes.
 
+    `unscaled_sum` skips the rescaling entirely and adds the pooled maps as
+    they are. It is the only combinator here that is linear in its inputs, which
+    is what an imaging map needs and what a detection map does not: rescaling is
+    how detection stops one loud pair carrying the whole map.
+
     The product is returned as its geometric mean. Taking the root is monotone,
     so it moves no maximum, but it keeps the map on the same scale as one
     pairwise map however many pairs there are. Without it the raw product of
@@ -299,6 +305,8 @@ def combine_pairwise_maps(
         ValueError: If the combinator is not recognised.
     """
     maps = np.atleast_2d(np.asarray(pairwise_maps, dtype=np.float64))
+    if pairwise_combinator == UNSCALED_SUM_COMBINATOR:
+        return np.asarray(np.sum(maps, axis=0), dtype=np.float64)
     normalised = maps - np.min(maps, axis=1, keepdims=True)
     normalised = normalised / (np.max(normalised, axis=1, keepdims=True) + MAP_FLOOR)
     if pairwise_combinator == SUM_COMBINATOR:

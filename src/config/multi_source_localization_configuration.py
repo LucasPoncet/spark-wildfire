@@ -4,6 +4,11 @@ from dataclasses import dataclass
 from typing import Any
 
 SUM_COMBINATOR: str = "sum"
+# Sums the pooled pair maps as they are, with no per-pair rescaling. That
+# rescaling reads a minimum and a maximum off the mixture, so it makes the
+# combined map depend on which sources are present and is the larger of the
+# two things that stop an imaging map adding. Detection keeps "sum".
+UNSCALED_SUM_COMBINATOR: str = "unscaled_sum"
 PRODUCT_COMBINATOR: str = "product"
 HARMONIC_MEAN_COMBINATOR: str = "harmonic_mean"
 

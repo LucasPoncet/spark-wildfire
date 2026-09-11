@@ -1,0 +1,90 @@
+# Settings for characterising bearing, rate of spread and front position from a
+# sequence of imaging maps. The detection settings in localization.toml are not
+# touched by any of this, so every committed localisation result stays
+# reproducible.
+
+[imaging_map]
+# The exponent, combinator and pooling below are measurements, not guesses; see
+# results/metrics/tier0_map_linearity.json.
+#
+# The first pass of this scene used the shipped "sum" combinator and failed the
+# linearity gate at the imaging spacing, 0.0694 against a target of 0.05. Two
+# mechanisms were responsible and both are now removed. Whitening is one, and
+# beta is zero. The larger one is that "sum" rescales every pair map to its own
+# minimum and maximum before adding, and both statistics belong to the mixture,
+# so the scale each pair is put on depends on which sources are present.
+# "unscaled_sum" adds the pooled maps as they are and is the only linear
+# combinator available. Together with mean pooling that takes the residual to
+# 0.0474 at the imaging spacing, inside the gate.
+#
+# The analytic envelope stays ON despite being non-linear. Without it the map
+# takes negative values, and a signed map is not a density: moments of it mean
+# nothing, and the correlation against the summed individual maps collapses from
+# 0.998 to 0.886. Making the map non-negative is worth more than the linearity
+# it costs.
+phase_transform_exponent = 0.0
+pairwise_combinator = "unscaled_sum"
+# "volumetric" in the plan names the family; the map code's rules are sum, mean,
+# max and point, of which only point is not volumetric. Mean is the linear
+# member, and linearity is the whole point of this family: mean pooling is
+# linear in the correlation curve where max is not.
+pooling = "mean"
+grid_spacing_m = 0.5
+frame_duration_s = 4.0
+frame_hop_s = 2.0
+# Raised from the plan's starting value of 60. The centroid bias over the region
+# a fifty-second front occupies runs at 3.2 m at 60, which fails the gate by an
+# order of magnitude: the response is wide enough there that the domain boundary
+# truncates it and drags the centroid inward. The bias falls monotonically as
+# the percentile rises - 1.02 m at 90, 0.47 m at 95, 0.17 m at 98.
+background_percentile = 98.0
+# Equal to the first-moment percentile, and the field exists because that was
+# measured rather than assumed. The reasoning for splitting them was that a
+# second moment is made of the tails a high percentile removes, so the extent
+# should want a low one. Run at 60 it fails completely: the array response's
+# own semi-axis grows from 1.6 m to between 7.5 and 10.5 m, far faster than the
+# front does, so Sigma_observed - Sigma_response goes non-positive and all ten
+# frames are correctly reported unresolved. The response has broader tails than
+# a compact front, so lowering the percentile hands it more than it hands the
+# fire. At 98 eight of ten frames resolve and the head rate lands within 19 per
+# cent. The field stays separate so a scene with a different response can set
+# it independently, but on this one it must not be lowered.
+extent_background_percentile = 98.0
+
+[point_spread_function]
+calibration_grid_spacing_m = 5.0
+centroid_bias_field_path = "results/calibration/f1/centroid_bias_field.npz"
+covariance_field_path = "results/calibration/f1/psf_covariance_field.npz"
+
+[bearing]
+direction_count = 360
+minimum_centroid_displacement_m = 1.0
+bootstrap_resample_count = 500
+# Skewness is weighted to zero on this scene, and that is a measurement rather
+# than a preference. The estimator reads the third moment of the map on the
+# premise that a head fire burns brighter than its back; the burning-cell source
+# model gives every cell the same amplitude, so no such gradient exists and the
+# estimator returns noise - 130 to 230 degrees against a true bearing of zero.
+# Its error is still reported every run, so the day a scene radiates by mass
+# loss rate the weight can go back up on evidence. Centroid offset replaces it
+# as the single-frame method: the front burns out behind itself and so sits
+# downwind of its origin, which is a first moment the geometry supplies whether
+# or not the intensity does.
+fusion_weights = { centroid_drift = 1.0, centroid_offset = 0.8, principal_axis = 0.5, skewness = 0.0 }
+
+[extent]
+shape_factor = 1.4142135623730951
+shape_factor_path = "results/calibration/f1/shape_factor.json"
+minimum_resolved_frames = 5
+
+[spread_model]
+maximum_iterations = 200
+parameter_tolerance = 1e-8
+seed_count = 3
+
+[front]
+radial_profile_step_m = 0.25
+maximum_radius_m = 30.0
+deconvolution_iteration_count = 50
+total_variation_weight = 0.01
+contour_level_fraction = 0.5

@@ -1,0 +1,4 @@
+[experiment]
+name = "f1"
+title = "Fire shape from 20 receivers"
+description = "One front spreading from the middle of a 60 m domain under the Balbi rate-of-spread engine, listened to by a ring of twenty receivers. Fifty seconds of simulated time, read in ten 5 s windows, each localized on its own. The deliverable is the shape of the burning contour, not a source count."

@@ -1,0 +1,5 @@
+[mesh]
+extent_x_m = 60.0
+extent_y_m = 60.0
+cell_spacing_m = 0.5
+use_diagonal_neighbors = true

@@ -1,0 +1,178 @@
+{
+  "centre_bias_m": 0.00014989938938807319,
+  "chosen_family_at_imaging_spacing": {
+    "correlation": 0.9978342369693223,
+    "grid_spacing_m": 0.5,
+    "normalized_residual": 0.04739135053746542,
+    "pairwise_combinator": "unscaled_sum",
+    "phase_transform_exponent": 0.0,
+    "pooling": "mean",
+    "source_count": 8
+  },
+  "chosen_imaging_family": {
+    "correlation": 0.9990206605052089,
+    "grid_spacing_m": 2.0,
+    "normalized_residual": 0.0421950658351583,
+    "pairwise_combinator": "unscaled_sum",
+    "phase_transform_exponent": 0.0,
+    "pooling": "mean",
+    "source_count": 8
+  },
+  "configuration_directory": "configs\\f1",
+  "configured_frame_duration_s": 4.0,
+  "fire_region_bias_m": 0.015928786785932934,
+  "fire_region_radius_m": 15.0,
+  "gate_criteria": [
+    {
+      "measured": "0.9978",
+      "name": "imaging map linearity, correlation at the gate source count",
+      "passed": true,
+      "target": ">= 0.98"
+    },
+    {
+      "measured": "0.0474",
+      "name": "imaging map linearity, normalised residual at the imaging spacing",
+      "passed": true,
+      "target": "<= 0.05"
+    },
+    {
+      "measured": "0.9978",
+      "name": "analytic response against a rendered one, three positions",
+      "passed": true,
+      "target": ">= 0.95"
+    },
+    {
+      "measured": "8.9%",
+      "name": "analytic against rendered response covariance, both eigenvalues",
+      "passed": true,
+      "target": "within 10%"
+    },
+    {
+      "measured": "0.000 m",
+      "name": "centroid bias at the domain centre, which is a symmetry point of the imaging grid and so passes by construction",
+      "passed": true,
+      "target": "< 0.3 m"
+    },
+    {
+      "measured": "0.016 m",
+      "name": "centroid bias over the region the fire occupies, the same threshold read where a centroid can actually land",
+      "passed": true,
+      "target": "< 0.3 m"
+    },
+    {
+      "measured": "flips present",
+      "name": "centroid bias field is smooth, no sign flip between neighbours",
+      "passed": false,
+      "target": "no flips"
+    },
+    {
+      "measured": "tests/spark/inverse/test_map_normalization.py",
+      "name": "map normalisation: unit mass, idempotent background subtraction",
+      "passed": true,
+      "target": "asserted by tests"
+    }
+  ],
+  "gate_passed": false,
+  "generated_at": "2026-09-11T04:15:57.053278+00:00",
+  "linearity_cells": [
+    {
+      "correlation": 0.9990206605052089,
+      "grid_spacing_m": 2.0,
+      "normalized_residual": 0.0421950658351583,
+      "pairwise_combinator": "unscaled_sum",
+      "phase_transform_exponent": 0.0,
+      "pooling": "mean",
+      "source_count": 8
+    }
+  ],
+  "maximum_bias_m": 2.8341741081006573,
+  "nearest_node_bias_m": 0.006476395328195417,
+  "response_validations": [
+    {
+      "analytic_semi_axes_m": [
+        1.5274329489264267,
+        1.5268757630159562
+      ],
+      "correlation": 0.9997517292568391,
+      "position_xy_m": [
+        30.0,
+        30.0
+      ],
+      "rendered_semi_axes_m": [
+        1.5086066991032432,
+        1.5080477133969652
+      ],
+      "semi_axis_relative_errors": [
+        0.012479229897609707,
+        0.012485049015179835
+      ]
+    },
+    {
+      "analytic_semi_axes_m": [
+        1.5748473926926012,
+        1.4783651773492124
+      ],
+      "correlation": 0.9996199292346393,
+      "position_xy_m": [
+        42.5,
+        30.0
+      ],
+      "rendered_semi_axes_m": [
+        1.5430672651955828,
+        1.4866507469226877
+      ],
+      "semi_axis_relative_errors": [
+        0.02059542588572139,
+        0.005573312757301064
+      ]
+    },
+    {
+      "analytic_semi_axes_m": [
+        1.612996024320966,
+        1.5970498447244068
+      ],
+      "correlation": 0.9977745509724048,
+      "position_xy_m": [
+        51.25,
+        30.0
+      ],
+      "rendered_semi_axes_m": [
+        1.7713421336085997,
+        1.5969750355751609
+      ],
+      "semi_axis_relative_errors": [
+        0.0893932946567748,
+        4.684428220821557e-05
+      ]
+    }
+  ],
+  "speckle_exclusion_radius_m": 15.0,
+  "speckle_floor_against_frame_duration": [
+    {
+      "frame_duration_s": 0.5,
+      "random_component": 0.0037339127391195766,
+      "speckle_floor": 0.038640687403062736
+    },
+    {
+      "frame_duration_s": 1.0,
+      "random_component": 0.0030368072896883747,
+      "speckle_floor": 0.052769586499219895
+    },
+    {
+      "frame_duration_s": 2.0,
+      "random_component": 0.004588590104136678,
+      "speckle_floor": 0.07375947083152336
+    },
+    {
+      "frame_duration_s": 4.0,
+      "random_component": 0.002670332410232106,
+      "speckle_floor": 0.09660177139493384
+    },
+    {
+      "frame_duration_s": 8.0,
+      "random_component": 0.002909129637061688,
+      "speckle_floor": 0.11918306516328842
+    }
+  ],
+  "speckle_grid_spacing_m": 1.0
+}

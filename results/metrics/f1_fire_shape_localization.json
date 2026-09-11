@@ -1,0 +1,407 @@
+{
+  "configuration_directory": "configs\\f1",
+  "emission_model": "front_only",
+  "experiment_name": "f1",
+  "experiment_title": "Fire shape from 20 receivers",
+  "generated_at": "2026-09-10T17:00:39.505371+00:00",
+  "observation_interval_s": 5.0,
+  "observations": [
+    {
+      "burning_cell_count": 5,
+      "estimated_positions_xy_m": [
+        [
+          31.000062165650217,
+          29.999959549998234
+        ]
+      ],
+      "estimated_source_count": 1,
+      "front_cell_count": 5,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 7.41671808130012e-05,
+      "median_distance_to_front_m": 7.41671808130012e-05,
+      "radiating_cell_count": 5,
+      "simulation_time_s": 5.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    },
+    {
+      "burning_cell_count": 13,
+      "estimated_positions_xy_m": [
+        [
+          30.499917610768804,
+          30.00097056518192
+        ]
+      ],
+      "estimated_source_count": 1,
+      "front_cell_count": 12,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 0.0009740558288782435,
+      "median_distance_to_front_m": 0.0009740558288782435,
+      "radiating_cell_count": 12,
+      "simulation_time_s": 10.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    },
+    {
+      "burning_cell_count": 32,
+      "estimated_positions_xy_m": [
+        [
+          30.000194739093743,
+          29.999756874312776
+        ]
+      ],
+      "estimated_source_count": 1,
+      "front_cell_count": 24,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 0.0003115018690470374,
+      "median_distance_to_front_m": 0.0003115018690470374,
+      "radiating_cell_count": 24,
+      "simulation_time_s": 15.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    },
+    {
+      "burning_cell_count": 49,
+      "estimated_positions_xy_m": [
+        [
+          31.500166098805007,
+          30.99931788383661
+        ],
+        [
+          32.50071023776836,
+          28.00148172640361
+        ]
+      ],
+      "estimated_source_count": 2,
+      "front_cell_count": 31,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 0.0016431527082905258,
+      "median_distance_to_front_m": 0.0011726003110847589,
+      "radiating_cell_count": 31,
+      "simulation_time_s": 20.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    },
+    {
+      "burning_cell_count": 80,
+      "estimated_positions_xy_m": [
+        [
+          35.00112419281529,
+          29.49963532774708
+        ],
+        [
+          31.5005124933555,
+          30.999845478135935
+        ],
+        [
+          31.999737273674572,
+          27.99914991025781
+        ],
+        [
+          33.999428980689906,
+          32.0018923344
+        ]
+      ],
+      "estimated_source_count": 4,
+      "front_cell_count": 40,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 0.0019766113765515504,
+      "median_distance_to_front_m": 0.0010358118402515523,
+      "radiating_cell_count": 40,
+      "simulation_time_s": 25.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    },
+    {
+      "burning_cell_count": 100,
+      "estimated_positions_xy_m": [
+        [
+          31.499654423042756,
+          30.998782156671037
+        ],
+        [
+          33.500294250067185,
+          26.499654559794614
+        ],
+        [
+          36.50087658932081,
+          29.500052596452164
+        ],
+        [
+          34.00091522560923,
+          32.49832764049062
+        ]
+      ],
+      "estimated_source_count": 4,
+      "front_cell_count": 44,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 0.0019064165978095367,
+      "median_distance_to_front_m": 0.0010720453558418909,
+      "radiating_cell_count": 44,
+      "simulation_time_s": 30.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    },
+    {
+      "burning_cell_count": 122,
+      "estimated_positions_xy_m": [
+        [
+          33.49964340183821,
+          26.500386776521133
+        ],
+        [
+          37.999478136873826,
+          29.49921368875497
+        ],
+        [
+          34.498642573614575,
+          32.99881851335797
+        ],
+        [
+          31.999978165020725,
+          32.00084991834604
+        ],
+        [
+          36.00067327916141,
+          28.001587603279557
+        ]
+      ],
+      "estimated_source_count": 5,
+      "front_cell_count": 48,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 0.0017995880298416799,
+      "median_distance_to_front_m": 0.000943730097284175,
+      "radiating_cell_count": 48,
+      "simulation_time_s": 35.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    },
+    {
+      "burning_cell_count": 150,
+      "estimated_positions_xy_m": [
+        [
+          37.499938975844834,
+          28.49986967109636
+        ],
+        [
+          33.49898652049949,
+          32.999664475307384
+        ],
+        [
+          35.00197846840139,
+          25.500193532279702
+        ],
+        [
+          38.50770023548615,
+          31.00630485455933
+        ]
+      ],
+      "estimated_source_count": 4,
+      "front_cell_count": 54,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 0.009952126283182471,
+      "median_distance_to_front_m": 0.0015277434943947433,
+      "radiating_cell_count": 54,
+      "simulation_time_s": 40.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    },
+    {
+      "burning_cell_count": 162,
+      "estimated_positions_xy_m": [
+        [
+          35.49933146549419,
+          25.00017795424849
+        ],
+        [
+          35.000142577286205,
+          34.99969184001466
+        ],
+        [
+          38.00150034728845,
+          27.497762725796
+        ],
+        [
+          40.49914428321413,
+          30.500001471708792
+        ],
+        [
+          33.49967290171158,
+          26.49971126443665
+        ],
+        [
+          37.99968607292879,
+          32.001387517010606
+        ],
+        [
+          33.4990942147364,
+          32.99882525215848
+        ]
+      ],
+      "estimated_source_count": 7,
+      "front_cell_count": 58,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 0.002693777616997229,
+      "median_distance_to_front_m": 0.0008557180514330783,
+      "radiating_cell_count": 58,
+      "simulation_time_s": 45.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    },
+    {
+      "burning_cell_count": 200,
+      "estimated_positions_xy_m": [
+        [
+          35.00033486334906,
+          25.499933652218374
+        ],
+        [
+          40.499817466648906,
+          29.000505615901233
+        ],
+        [
+          35.00056746292741,
+          34.99952714342158
+        ],
+        [
+          39.00033343872447,
+          32.50032476925103
+        ],
+        [
+          37.99867359475849,
+          25.99967094306142
+        ],
+        [
+          37.501490361001856,
+          34.50015277671632
+        ]
+      ],
+      "estimated_source_count": 6,
+      "front_cell_count": 64,
+      "front_component_count": 1,
+      "front_coverage_fraction": 1.0,
+      "front_coverage_radius_m": 4.0,
+      "maximum_distance_to_front_m": 0.0014981710986745878,
+      "median_distance_to_front_m": 0.0006381039766074573,
+      "radiating_cell_count": 64,
+      "simulation_time_s": 50.0,
+      "stop_reason": "peak_too_close_to_an_accepted_source"
+    }
+  ],
+  "receiver_count": 20,
+  "receiver_positions_xyz_m": [
+    [
+      55.0,
+      30.0,
+      1.5
+    ],
+    [
+      53.77641290737884,
+      37.72542485937368,
+      1.5
+    ],
+    [
+      50.22542485937369,
+      44.69463130731183,
+      1.5
+    ],
+    [
+      44.69463130731183,
+      50.22542485937369,
+      1.5
+    ],
+    [
+      37.72542485937369,
+      53.77641290737884,
+      1.5
+    ],
+    [
+      30.0,
+      55.0,
+      1.5
+    ],
+    [
+      22.274575140626318,
+      53.77641290737884,
+      1.5
+    ],
+    [
+      15.305368692688175,
+      50.22542485937369,
+      1.5
+    ],
+    [
+      9.774575140626318,
+      44.69463130731183,
+      1.5
+    ],
+    [
+      6.2235870926211625,
+      37.72542485937369,
+      1.5
+    ],
+    [
+      5.0,
+      30.000000000000004,
+      1.5
+    ],
+    [
+      6.223587092621159,
+      22.274575140626318,
+      1.5
+    ],
+    [
+      9.774575140626315,
+      15.305368692688175,
+      1.5
+    ],
+    [
+      15.30536869268817,
+      9.774575140626318,
+      1.5
+    ],
+    [
+      22.27457514062631,
+      6.2235870926211625,
+      1.5
+    ],
+    [
+      29.999999999999996,
+      5.0,
+      1.5
+    ],
+    [
+      37.72542485937368,
+      6.223587092621159,
+      1.5
+    ],
+    [
+      44.69463130731182,
+      9.774575140626311,
+      1.5
+    ],
+    [
+      50.22542485937368,
+      15.305368692688166,
+      1.5
+    ],
+    [
+      53.77641290737884,
+      22.274575140626308,
+      1.5
+    ]
+  ],
+  "sample_rate_hz": 44100,
+  "spread_engine_name": "rate_of_spread",
+  "time_step_s": 1.8347299320880353,
+  "wind_speed_m_per_s": 12.0
+}

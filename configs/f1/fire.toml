@@ -1,0 +1,15 @@
+# spread_engine_name is the propagation-equation engine: fire crossing an edge
+# is an arrival-time problem whose rate comes from Balbi 2009 Eq. 11a-11b,
+# rather than the probabilistic cellular automaton.
+[fire]
+fuel_preset_name = "pine_needle_litter"
+spread_engine_name = "rate_of_spread"
+fuel_field_type = "uniform"
+ignition_cell_x_fraction = 0.5
+ignition_cell_y_fraction = 0.5
+simulation_duration_s = 50.0
+time_step_safety_factor = 0.9
+# The burning band is about ten cells thick here, so the two emission models do
+# not coincide: at t = 50 s there are 200 burning cells and 64 on the front.
+# The front is the contour whose shape this scene sets out to recover.
+emission_model = "front_only"

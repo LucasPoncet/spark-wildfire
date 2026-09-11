@@ -1,0 +1,78 @@
+{
+  "background_percentile": 98.0,
+  "bias_field_has_no_sign_flip": false,
+  "calibration_grid_spacing_m": 5.0,
+  "calibration_node_count": 144,
+  "centre_bias_m": 0.006476395328195417,
+  "centre_bias_target_m": 0.3,
+  "centroid_bias_field_path": "results\\calibration\\f1\\centroid_bias_field.npz",
+  "configuration_directory": "configs\\f1",
+  "covariance_field_path": "results\\calibration\\f1\\psf_covariance_field.npz",
+  "generated_at": "2026-09-11T04:14:24.758444+00:00",
+  "imaging_grid_spacing_m": 0.5,
+  "maximum_bias_m": 2.8341741081006573,
+  "maximum_semi_axis_relative_error": 0.0893932946567748,
+  "minimum_validation_correlation": 0.9977745509724048,
+  "receiver_count": 20,
+  "validation_correlation_target": 0.95,
+  "validation_covariance_tolerance": 0.1,
+  "validations": [
+    {
+      "analytic_semi_axes_m": [
+        1.5274329489264267,
+        1.5268757630159562
+      ],
+      "correlation": 0.9997517292568391,
+      "position_xy_m": [
+        30.0,
+        30.0
+      ],
+      "rendered_semi_axes_m": [
+        1.5086066991032432,
+        1.5080477133969652
+      ],
+      "semi_axis_relative_errors": [
+        0.012479229897609707,
+        0.012485049015179835
+      ]
+    },
+    {
+      "analytic_semi_axes_m": [
+        1.5748473926926012,
+        1.4783651773492124
+      ],
+      "correlation": 0.9996199292346393,
+      "position_xy_m": [
+        42.5,
+        30.0
+      ],
+      "rendered_semi_axes_m": [
+        1.5430672651955828,
+        1.4866507469226877
+      ],
+      "semi_axis_relative_errors": [
+        0.02059542588572139,
+        0.005573312757301064
+      ]
+    },
+    {
+      "analytic_semi_axes_m": [
+        1.612996024320966,
+        1.5970498447244068
+      ],
+      "correlation": 0.9977745509724048,
+      "position_xy_m": [
+        51.25,
+        30.0
+      ],
+      "rendered_semi_axes_m": [
+        1.7713421336085997,
+        1.5969750355751609
+      ],
+      "semi_axis_relative_errors": [
+        0.0893932946567748,
+        4.684428220821557e-05
+      ]
+    }
+  ]
+}
