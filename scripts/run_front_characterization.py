@@ -223,6 +223,8 @@ def read_one_frame(
         ignition_xy_m,
         angles_rad,
         front.contour_level_fraction,
+        front.contour_local_level_fraction,
+        front.contour_support_fraction,
         front.maximum_radius_m,
         front.radial_profile_step_m,
     )
@@ -232,6 +234,8 @@ def read_one_frame(
         ignition_xy_m,
         angles_rad,
         front.contour_level_fraction,
+        front.contour_local_level_fraction,
+        front.contour_support_fraction,
         front.maximum_radius_m,
         front.radial_profile_step_m,
     )
@@ -298,6 +302,9 @@ def score_frame(front_frame: FrontFrame, angles_rad: Float64Array) -> dict[str, 
             "correlation": front_frame.perimeter_correlation,
         },
         "deconvolution": {
+            "coverage_fraction": compute_angular_coverage_fraction(
+                front_frame.deconvolved_distances_m
+            ),
             "mean_radial_error_m": compute_mean_radial_error(
                 front_frame.deconvolved_distances_m, true_distances_m
             ),
@@ -482,7 +489,9 @@ def main() -> None:
     figure_path = figure_directory / "tier3_front_position.svg"
     figure.savefig(figure_path, bbox_inches="tight")
 
-    metrics_path = METRICS_ROOT / "tier3_front_position.json"
+    metrics_path = (
+        METRICS_ROOT / f"{forward_config.experiment.name}_tier3_front_position.json"
+    )
     write_metrics_document(
         {
             "generated_at": datetime.now(UTC).isoformat(),

@@ -34,6 +34,13 @@ class FireSimulationConfiguration:
             fields. With patches it is the density at a patch centre.
         tree_fuel_load_kg_per_m2: Peak fuel load contributed by one tree.
         tree_influence_radius_m: Gaussian standard deviation of a tree footprint.
+        spread_engine_random_seed: Seed making a probabilistic spread engine
+            reproducible. The cellular automaton draws a coin per neighbour
+            per step and is the only engine that reads it; left unseeded it
+            takes its stream from the operating system, so two runs of one
+            configuration produce different fires. Measured on `configs/f2`,
+            that moved the final-frame sector overlap between 0.28 and 0.68,
+            which is wider than most of the effects being measured.
         tree_layout_seed: Seed making a tree layout reproducible.
         tree_patch_centers_xy_fraction: Patch centres as fractions of the grid
             extent, used by the patchy tree field.
@@ -55,6 +62,7 @@ class FireSimulationConfiguration:
     tree_density_per_m2: float = 0.1
     tree_fuel_load_kg_per_m2: float = 0.25
     tree_influence_radius_m: float = 2.5
+    spread_engine_random_seed: int = 0
     tree_layout_seed: int = 100
     tree_patch_centers_xy_fraction: tuple[tuple[float, float], ...] = (
         DEFAULT_TREE_PATCH_CENTERS_XY_FRACTION
@@ -124,6 +132,11 @@ class FireSimulationConfiguration:
             tree_influence_radius_m=float(
                 data.get("tree_influence_radius_m", defaults.tree_influence_radius_m)
             ),
+            spread_engine_random_seed=int(
+                data.get(
+                    "spread_engine_random_seed", defaults.spread_engine_random_seed
+                )
+            ),
             tree_layout_seed=int(
                 data.get("tree_layout_seed", defaults.tree_layout_seed)
             ),
@@ -165,6 +178,7 @@ class FireSimulationConfiguration:
             "tree_density_per_m2": self.tree_density_per_m2,
             "tree_fuel_load_kg_per_m2": self.tree_fuel_load_kg_per_m2,
             "tree_influence_radius_m": self.tree_influence_radius_m,
+            "spread_engine_random_seed": self.spread_engine_random_seed,
             "tree_layout_seed": self.tree_layout_seed,
             "tree_patch_centers_xy_fraction": [
                 list(point) for point in self.tree_patch_centers_xy_fraction

@@ -47,6 +47,7 @@ def test_every_section_loads(
     assert characterization.extent.minimum_resolved_frames > 0
     assert characterization.spread_model.seed_count > 0
     assert characterization.front.contour_level_fraction > 0.0
+    assert 0.0 <= characterization.front.contour_support_fraction <= 1.0
 
 
 def test_the_imaging_pooling_names_a_rule_the_map_code_accepts(

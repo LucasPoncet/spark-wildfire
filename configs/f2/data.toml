@@ -1,0 +1,24 @@
+[recording]
+path = "data/raw_recordings/kaggle/videoplayback_01.wav"
+as_mono = true
+
+[segmentation]
+clip_duration_s = 5.0
+overlap_fraction = 0.0
+
+[output]
+metrics_directory = "results/metrics"
+metrics_filename = "f1_fire_shape_localization.json"
+
+# The excerpt pool is not read by this scene. Its sources are burning cells,
+# and each one is given its own seeded broadband waveform by the forward source
+# model rather than an excerpt from the recording pool, because a front carries
+# tens to hundreds of cells and the pool holds sixty files. The block stays
+# because the data loader requires it and because every other script pointed at
+# this directory should still find a well-formed scene.
+[excerpts]
+recording_directory = "data/raw_recordings/kaggle"
+recording_filenames = ["videoplayback_02.wav"]
+assignment_policy = "explicit"
+maximum_permitted_excerpt_coherence = 0.15
+selection_seed = 0

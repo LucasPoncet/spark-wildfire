@@ -1,0 +1,301 @@
+{
+  "angle_count": 180,
+  "bearing_deg": -1.6112865488784698,
+  "configuration_directory": "configs\\f1",
+  "deconvolution": {
+    "contour_level_fraction": 0.15,
+    "iteration_count": 50,
+    "total_variation_weight": 0.01
+  },
+  "estimated_ignition_xy_m": [
+    30.515465990885648,
+    29.980050678190526
+  ],
+  "frames": [
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.08333333333333333,
+        "coverage_fraction": 1.0,
+        "mean_radial_error_m": 0.5211971137638722,
+        "sector_overlap": 0.018675486856587778
+      },
+      "perimeter": {
+        "correlation": 0.7921429012639802,
+        "coverage_agreement": 0.6222222222222222,
+        "mean_radial_error_m": 0.3202518057303263,
+        "sector_overlap": 0.01522823478132207
+      },
+      "profile": {
+        "head_distance_m": 0.4815450382567968,
+        "head_error_m": 0.5184549617432033,
+        "is_one_sided": false,
+        "lobe_centre_distance_m": 0.3946152854167064,
+        "residual": 0.0043202186590760305
+      },
+      "response_semi_axis_m": 1.5260351286282994,
+      "time_s": 5.0,
+      "true_coverage_fraction": 0.08333333333333333,
+      "true_head_distance_m": 1.0
+    },
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.16111111111111112,
+        "coverage_fraction": 1.0,
+        "mean_radial_error_m": 0.3677490584045813,
+        "sector_overlap": 0.10297993944440599
+      },
+      "perimeter": {
+        "correlation": 0.804823859142924,
+        "coverage_agreement": 0.6444444444444445,
+        "mean_radial_error_m": 0.72169845126127,
+        "sector_overlap": 0.04350358518505765
+      },
+      "profile": {
+        "head_distance_m": 1.7311099287212801,
+        "head_error_m": 0.2688900712787199,
+        "is_one_sided": false,
+        "lobe_centre_distance_m": 1.1630495605394555,
+        "residual": 0.004330280381259863
+      },
+      "response_semi_axis_m": 1.5197754135558388,
+      "time_s": 10.0,
+      "true_coverage_fraction": 0.16111111111111112,
+      "true_head_distance_m": 2.0
+    },
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.4388888888888889,
+        "coverage_fraction": 0.7944444444444444,
+        "mean_radial_error_m": 0.23578255555426886,
+        "sector_overlap": 0.40289068742608575
+      },
+      "perimeter": {
+        "correlation": 0.828104259418296,
+        "coverage_agreement": 0.7388888888888889,
+        "mean_radial_error_m": 0.8500464540539957,
+        "sector_overlap": 0.2745514085412708
+      },
+      "profile": {
+        "head_distance_m": 3.1463750416591503,
+        "head_error_m": 0.3536249583408497,
+        "is_one_sided": false,
+        "lobe_centre_distance_m": 1.9993315031387193,
+        "residual": 0.015109182666940713
+      },
+      "response_semi_axis_m": 1.5264447767005767,
+      "time_s": 15.0,
+      "true_coverage_fraction": 0.26666666666666666,
+      "true_head_distance_m": 3.5
+    },
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.8222222222222222,
+        "coverage_fraction": 0.36666666666666664,
+        "mean_radial_error_m": 0.27941642807659517,
+        "sector_overlap": 0.5683494309152973
+      },
+      "perimeter": {
+        "correlation": 0.8148962695041984,
+        "coverage_agreement": 0.7555555555555555,
+        "mean_radial_error_m": 1.6652886467619392,
+        "sector_overlap": 0.1298204920828515
+      },
+      "profile": {
+        "head_distance_m": 4.224518708877215,
+        "head_error_m": 0.27548129112278463,
+        "is_one_sided": false,
+        "lobe_centre_distance_m": 2.7163902755742884,
+        "residual": 0.025163052850060437
+      },
+      "response_semi_axis_m": 1.524835082313939,
+      "time_s": 20.0,
+      "true_coverage_fraction": 0.3,
+      "true_head_distance_m": 4.5
+    },
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.9166666666666666,
+        "coverage_fraction": 0.28888888888888886,
+        "mean_radial_error_m": 0.3711682569911896,
+        "sector_overlap": 0.7509922550619057
+      },
+      "perimeter": {
+        "correlation": 0.8143761188436509,
+        "coverage_agreement": 0.8611111111111112,
+        "mean_radial_error_m": 1.3068830872946287,
+        "sector_overlap": 0.37363961331771983
+      },
+      "profile": {
+        "head_distance_m": 5.990458229476192,
+        "head_error_m": 0.009541770523807891,
+        "is_one_sided": false,
+        "lobe_centre_distance_m": 4.348271463674158,
+        "residual": 0.04184743772728985
+      },
+      "response_semi_axis_m": 1.5243346203349177,
+      "time_s": 25.0,
+      "true_coverage_fraction": 0.3388888888888889,
+      "true_head_distance_m": 6.0
+    },
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.9222222222222223,
+        "coverage_fraction": 0.26666666666666666,
+        "mean_radial_error_m": 0.31212974435097196,
+        "sector_overlap": 0.7522592776172725
+      },
+      "perimeter": {
+        "correlation": 0.7978963557212828,
+        "coverage_agreement": 0.8444444444444444,
+        "mean_radial_error_m": 1.2563607052053025,
+        "sector_overlap": 0.37340608606315157
+      },
+      "profile": {
+        "head_distance_m": 6.8147948200089274,
+        "head_error_m": 0.18520517999107255,
+        "is_one_sided": false,
+        "lobe_centre_distance_m": 5.111095426468761,
+        "residual": 0.05434703881381557
+      },
+      "response_semi_axis_m": 1.5371732785466001,
+      "time_s": 30.0,
+      "true_coverage_fraction": 0.3111111111111111,
+      "true_head_distance_m": 7.0
+    },
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.9277777777777778,
+        "coverage_fraction": 0.2388888888888889,
+        "mean_radial_error_m": 0.3256676425134877,
+        "sector_overlap": 0.7805117503736225
+      },
+      "perimeter": {
+        "correlation": 0.7833243355258893,
+        "coverage_agreement": 0.8555555555555555,
+        "mean_radial_error_m": 1.0123726949717016,
+        "sector_overlap": 0.4755180934326171
+      },
+      "profile": {
+        "head_distance_m": 8.347207407579829,
+        "head_error_m": 0.1527925924201714,
+        "is_one_sided": true,
+        "lobe_centre_distance_m": 6.861204434553958,
+        "residual": 0.05687846132776814
+      },
+      "response_semi_axis_m": 1.5336996977332233,
+      "time_s": 35.0,
+      "true_coverage_fraction": 0.3111111111111111,
+      "true_head_distance_m": 8.5
+    },
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.9444444444444444,
+        "coverage_fraction": 0.24444444444444444,
+        "mean_radial_error_m": 0.2999390396521186,
+        "sector_overlap": 0.8120021579384981
+      },
+      "perimeter": {
+        "correlation": 0.7542244544715646,
+        "coverage_agreement": 0.8722222222222222,
+        "mean_radial_error_m": 0.9725454500606269,
+        "sector_overlap": 0.5080097110029714
+      },
+      "profile": {
+        "head_distance_m": 9.088555673373344,
+        "head_error_m": 0.41144432662665587,
+        "is_one_sided": true,
+        "lobe_centre_distance_m": 8.04234410749864,
+        "residual": 0.04640623232603365
+      },
+      "response_semi_axis_m": 1.5423830256011828,
+      "time_s": 40.0,
+      "true_coverage_fraction": 0.3,
+      "true_head_distance_m": 9.5
+    },
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.9611111111111111,
+        "coverage_fraction": 0.25,
+        "mean_radial_error_m": 0.3553844806527345,
+        "sector_overlap": 0.8322997593061192
+      },
+      "perimeter": {
+        "correlation": 0.7219558324879515,
+        "coverage_agreement": 0.8777777777777778,
+        "mean_radial_error_m": 0.9586970504975831,
+        "sector_overlap": 0.5257298518866143
+      },
+      "profile": {
+        "head_distance_m": 10.545181635128301,
+        "head_error_m": 0.4548183648716986,
+        "is_one_sided": true,
+        "lobe_centre_distance_m": 9.518949995429661,
+        "residual": 0.045459507621364234
+      },
+      "response_semi_axis_m": 1.5540754068076663,
+      "time_s": 45.0,
+      "true_coverage_fraction": 0.28888888888888886,
+      "true_head_distance_m": 11.0
+    },
+    {
+      "deconvolution": {
+        "coverage_agreement": 0.9666666666666667,
+        "coverage_fraction": 0.25,
+        "mean_radial_error_m": 0.21283580989097944,
+        "sector_overlap": 0.8681821025101203
+      },
+      "perimeter": {
+        "correlation": 0.684593247927343,
+        "coverage_agreement": 0.8666666666666667,
+        "mean_radial_error_m": 0.7703659668251235,
+        "sector_overlap": 0.5172144547209913
+      },
+      "profile": {
+        "head_distance_m": 11.126349034781269,
+        "head_error_m": 0.8736509652187312,
+        "is_one_sided": true,
+        "lobe_centre_distance_m": 10.507064883552328,
+        "residual": 0.03792828526864262
+      },
+      "response_semi_axis_m": 1.545038808779204,
+      "time_s": 50.0,
+      "true_coverage_fraction": 0.2833333333333333,
+      "true_head_distance_m": 12.0
+    }
+  ],
+  "gate_criteria": [
+    {
+      "measured": "worst 0.87 m over 9 frames",
+      "name": "matched-filter head distance, frames past one response semi-axis",
+      "passed": true,
+      "target": "within 1.5 m"
+    },
+    {
+      "measured": "0.77 m",
+      "name": "parametric perimeter mean radial error, final frame",
+      "passed": true,
+      "target": "below 2.0 m"
+    },
+    {
+      "measured": "0.21 m against 0.77 m",
+      "name": "free-form deconvolution no worse than the parametric fit",
+      "passed": true,
+      "target": "<= parametric"
+    },
+    {
+      "measured": "0.87",
+      "name": "sector overlap on the final frame, better of the two routes",
+      "passed": true,
+      "target": "above 0.6"
+    },
+    {
+      "measured": "0.52 m at 0.7 response widths to 0.21 m at 7.8",
+      "name": "resolution onset curve is monotone in fire size",
+      "passed": true,
+      "target": "monotone"
+    }
+  ],
+  "gate_passed": true,
+  "generated_at": "2026-09-12T12:26:30.066221+00:00",
+  "hausdorff_final_frame_m": 2.544293225152476
+}

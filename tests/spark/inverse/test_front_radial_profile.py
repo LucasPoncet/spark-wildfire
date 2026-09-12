@@ -253,3 +253,49 @@ def test_an_empty_profile_is_rejected_by_the_band_fit() -> None:
         estimate_front_band_by_matched_filter(
             radii_m, np.zeros(radii_m.size), radii_m, np.ones(radii_m.size), 10.0
         )
+
+
+def build_two_sided_band_profile(
+    forward_edges_m: tuple[float, float],
+    backward_edges_m: tuple[float, float],
+    backward_amplitude: float,
+    response_width_m: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """A front ahead of the origin and a brighter one behind it.
+
+    What a fire that spreads upwind as well as down puts on one radial line,
+    and what `configs/f1` — which burns out behind itself — never produces.
+    """
+    radii_m = np.arange(
+        -MAXIMUM_RADIUS_M, MAXIMUM_RADIUS_M + RADIUS_STEP_M, RADIUS_STEP_M
+    )
+    forward = (
+        (radii_m >= forward_edges_m[0]) & (radii_m <= forward_edges_m[1])
+    ).astype(np.float64)
+    backward = (
+        (radii_m >= backward_edges_m[0]) & (radii_m <= backward_edges_m[1])
+    ).astype(np.float64)
+    kernel = np.exp(-0.5 * (radii_m / response_width_m) ** 2)
+    band = forward + backward_amplitude * backward
+    return radii_m, np.convolve(band, kernel / kernel.sum(), mode="same")
+
+
+def test_a_head_distance_is_never_read_from_behind_the_origin() -> None:
+    """The failure measured on configs/f2, where four frames of ten went negative.
+
+    The lobe behind is deliberately the brighter of the two, so a fit seeded
+    from the profile's global maximum lands on it. A head distance is the
+    front's distance in the direction it was asked about, so it cannot be.
+    """
+    radii_m, profile = build_two_sided_band_profile((5.0, 8.0), (-11.0, -8.0), 1.6, 1.2)
+    response_profile = np.exp(-0.5 * (radii_m / 1.2) ** 2)
+    estimate = estimate_front_band_by_matched_filter(
+        radii_m, profile, radii_m, response_profile, MAXIMUM_RADIUS_M
+    )
+    assert estimate.outer_edge_m > 0.0
+    assert estimate.outer_edge_m == pytest.approx(8.0, abs=0.5)
+
+
+def test_a_one_sided_profile_is_unchanged_by_the_forward_seed() -> None:
+    """What configs/f1 measures, which must not move."""
+    assert fit_band(5.0, 12.0, 1.2).outer_edge_m == pytest.approx(12.0, abs=0.2)

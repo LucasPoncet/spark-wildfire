@@ -1064,6 +1064,17 @@ at eight seconds each — thirty-two hours — so the deconvolution is
 transform-based about a single centred response, and that approximation now
 carries its measured fidelity.
 
+**A third measurement arrived after the tier was built and overturned its first
+verdict.** Both contour routes were reported as degrading with fire size, which
+read as a model failing where a front outgrows the array. It was not: the
+response is evaluated at each frame's own centroid and the operator was not
+re-centring it, so the reconstruction was displaced by however far the fire had
+travelled. Centred, Gate 3 holds five of five. The lesson worth keeping is that
+a defect growing smoothly with the independent variable looks exactly like a
+physical limit, and the way to tell them apart was to check the estimate in the
+one direction where an independent route already worked — the matched filter
+read the head to 0.87 m off the same map that the contour put 6.66 m wrong.
+
 #### `front_radial_profile.py` ✅ implemented
 
 **Owns:** `sample_map_bilinear`, `extract_radial_profile`,
@@ -1113,19 +1124,60 @@ Total variation is physically motivated rather than generic here: only the
 perimeter radiates and the interior is silent, so the true support is
 one-dimensional.
 
+**The kernel is re-centred before its transform is taken, and omitting that was
+the largest error in this tier.** A convolution kernel carries its own offset.
+Callers evaluate the response at the source they are imaging rather than at the
+middle of the domain — the accurate thing to do for its *shape* — so a kernel
+built straight from it translates by the separation between the two, and the
+density it recovers comes back displaced by that separation in the opposite
+direction. On `configs/f1` the separation is the distance the fire has
+travelled: 0.71 m at five seconds, 8.02 m at fifty. Both contour routes share
+this operator and both tracked it, the free-form route's mean radial error
+running 0.35 m to 6.66 m and the parametric perimeter's 0.48 m to 7.01 m. That
+looked exactly like a model degrading as a front outgrows the array's
+resolution, and it was not one. Centred, the final-frame radial error is
+0.24 m and the whole of Gate 3 holds.
+
+Centring is done in two steps, because a roll moves whole cells only. The roll
+puts the brightest cell on the grid centre and a linear phase ramp on the
+spectrum takes out the fraction of a cell left over — a shift is a
+multiplication in the transform domain, so the sub-cell part costs one complex
+array and no resampling. The residue is then set by how well the peak's own
+curvature locates it rather than by the grid: measured on a Gaussian response,
+0.012 cells at two cells wide and 0.003 at four, against the half a cell the
+roll alone leaves. At the imaging spacing that is 0.25 m down to under a
+centimetre, which matters once the error it sits inside is 0.24 m.
+
 #### `front_contour.py` ✅ implemented
 
-**Owns:** `compute_contour_distance_by_angle`, `extract_front_contour` and
-`compute_angular_coverage_fraction`. Extraction is radial rather than by
-marching squares, so a direction the front does not cover reports none instead
-of being invented.
+**Owns:** `compute_angular_support`, `compute_contour_distance_by_angle`,
+`extract_front_contour` and `compute_angular_coverage_fraction`. Extraction is
+radial rather than by marching squares, so a direction the front does not cover
+reports none instead of being invented.
 
-**And that is where the free-form route fails.** A level-set contour of a blob
-always closes, so the deconvolution claims every direction while the truth
-covers about thirty per cent — visible in the records as the coverage agreement
-equalling the true coverage exactly, frame after frame. The union is three
-times the truth's sector before any radius is considered, which caps the
-overlap near 0.3 and measures 0.07.
+**A crossing alone does not make a direction covered.** The level is a fraction
+of the density's *global* peak, so a direction whose only claim is the skirt of
+a bright arc elsewhere still crosses it, close in, and returns a radius
+belonging to that arc. `compute_angular_support` measures each direction on its
+own instead — the wedge mass `sum(density(r) * r * dr)` along its ray, scaled
+so the best direction is one — and a direction below `contour_support_fraction`
+carries no front. The radius weight is what makes it a mass rather than a line
+sum: a wedge's area grows with radius, so a dim residue beside the origin
+cannot outvote an arc twelve metres out.
+
+**The gate is inert on `configs/f1` and is kept deliberately.** The failure it
+refuses was real here for as long as the deconvolution kernel was mis-centred,
+and the tests reproduce it directly: an arc with a dim halo about the origin
+claims the whole circle ungated and its own sector once gated. A centred kernel
+leaves no such residue, the level gate alone suffices, and any positive support
+now costs overlap — 0.865 at zero, 0.840 at 0.15, 0.312 at 0.40. It ships at
+zero, to be raised only on a scene whose coverage exceeds the truth's.
+
+`contour_level_fraction` is 0.15 rather than the plan's half maximum. A
+correctly placed density is also correctly concentrated, and at 0.5 the contour
+kept only the arc's bright middle: coverage 0.106 against a true 0.283, sector
+overlap 0.407. The optimum is flat from 0.10 to 0.20 — mean overlap 0.578,
+0.573, 0.563 — and 0.15 is the middle of it.
 
 ---
 
@@ -1416,6 +1468,42 @@ Three new configuration blocks, all required, all present in every directory:
 | `e2` | Two sources, three receivers, 60 m domain | The ladder's own E2 scene, now readable by the multi-source pipeline. `N = 3` is the ambiguous baseline the plan says to report rather than hide |
 | `m4` | Up to twenty sources around a circle of radius 10 m, fifteen to twenty-five receivers | A compact ring, far tighter than `m3`: closest pair 4.1 m at ten sources and 2.7 m at twenty. The scene the source-count and receiver-count sweep runs on |
 | `f1` | One spreading front on a 60 m domain, twenty receivers on a 25 m ring, ten 5 s windows | The only scene whose sources are not configured at all: they are whatever cells are alight, so the count changes every window and is never known in advance |
+| `f2` | One spreading front on a 100 x 100 grid, twenty receivers on a 22 m ring, ten 3 s windows, driven by the **cellular automaton** | The probabilistic spread model rather than the propagation equation. Its front is nearly closed where `f1`'s is a quarter arc, so it exercises the geometry the plan originally assumed. Gate 3 holds 3 of 5 here, and what fails is the free-form route |
+| `f3` | `f2` in every respect but the spread engine, which is the propagation equation | The control. `f2` changes both the spread model and the grid against `f1`, and without this there is no way to say which of them moved a number. It holds 5 of 5, which is what makes every `f2` failure attributable to the spread model |
+
+**What the automaton scene established.** Three defects and one limit, none of
+them reachable from `f1`:
+
+*The spread engine was never seeded.* `CellularAutomatonSpreadEngineConfig`
+defaults `random_seed` to `None` and the composition root constructed the
+engine with no arguments, so every run simulated a different fire — 159 against
+166 burning cells at the same instant, and a final-frame sector overlap of 0.68
+in one realisation against 0.28 in another, which is wider than most of the
+effects the scene is used to measure. `spread_engine_random_seed` now sits on
+`FireSimulationConfiguration` and reaches the engine through
+`build_spread_engine`. The rate-of-spread and static-source engines draw no
+random numbers and are unaffected.
+
+*A head distance could be read from behind the origin.* The band fit seeded
+from the profile's global maximum and bounded both edges symmetrically. A fire
+that burns out behind itself puts nothing there to find; one that spreads
+upwind puts a lobe on each side, and four frames of ten came back with head
+distances of −2.09 to −4.63 m. The seed is now taken over non-negative radii
+and the outer edge is floored at zero.
+
+*Richardson-Lucy concentrates, and on an extended source that costs coverage.*
+Measured on the final frame against a true angular coverage of 0.95, the
+contour covers 1.000, 0.639, 0.422, 0.356 and 0.272 of the circle at 4, 5, 10,
+50 and 100 iterations. `f1`'s compact arc does not suffer and takes 50; this
+closed ring takes 4.
+
+*And the free-form route does not earn its place on a closed front.* Read at
+the same level, the **undeconvolved** imaging map gives a sector overlap of
+0.708 on the final frame where the deconvolution's best setting gives 0.690 and
+its shipped one 0.575. The parametric perimeter beats it outright, 0.91 m
+against 2.03 m. The plan's own gate asks whether the free-form route beats the
+parametric one and says to prefer the parametric fit and report it when it does
+not, which is exactly the verdict here.
 | `audit_pool` | The whole pool, `distinct_provenance` | A scratch scene for Stage 0 only; it localizes nothing |
 
 **`f1` raises the wind to 12 m/s and that is the one number in it that is not a
@@ -1858,11 +1946,23 @@ percentiles the two stages need.
 Tier 3. Reads every frame's imaging map three ways — a matched filter on one
 radial profile, a parametric elliptical arc, and a free-form deconvolution —
 and scores each against the cells that were actually alight. Writes
-`results/metrics/tier3_front_position.json`.
+`results/metrics/<scene>_tier3_front_position.json`. The scene name is part
+of the filename because three scenes now run this script and a shared name
+meant each overwrote the last, leaving a committed record that silently
+belonged to whichever ran most recently.
 
 **The angular sweep is the whole circle and the front covers a quarter of it**,
 so coverage is a measured output on both sides rather than an assumption on
-either.
+either. Each frame also records the estimate's own coverage beside the truth's,
+which is what makes an over-claiming contour visible as something other than a
+radial error.
+
+Gate 3 holds 5 of 5 on `configs/f1`: head distance worst 0.87 m over nine
+qualifying frames, parametric perimeter 0.67 m on the final frame, the
+free-form route 0.24 m against it, sector overlap 0.87, and the onset curve
+monotone at 0.39 m for a fire 0.7 response widths across falling to 0.24 m at
+7.8. Before the deconvolution kernel was centred the same run gave 7.01 m,
+6.66 m, an overlap of 0.07 and a rising onset curve.
 
 ### `run_localization_sweep.py` ✅ implemented
 
@@ -1961,10 +2061,11 @@ files are exercised on every run rather than duplicated in test constants.
 | `utils/metrics/test_bearing_metrics.py` ✅ | An error across the wrap is the short way round; a summary counts the frames inside each tolerance; agreement is measured circularly too |
 | `utils/metrics/test_spread_metrics.py` ✅ | The true rate is fitted robustly; a zero truth reports no relative error rather than an infinite one; an unresolved frame above the response is reported as merely conservative rather than honest |
 | `utils/visualization/test_fire_characterization_plotter.py` ✅ | Both panels run on one clock; resolved frames are drawn apart from ceilings; a run with nothing resolved still draws |
-| `spark/inverse/test_front_radial_profile.py` ✅ | A two-lobed map gives back both distances and a map with no trailing lobe is reported one-sided; **the band model recovers the leading edge across every band width and response width, and a one-lobe fit falls short by exactly the band's half-width** — the measurement that ruled out correcting it with a response width |
+| `spark/inverse/test_front_radial_profile.py` ✅ | A two-lobed map gives back both distances and a map with no trailing lobe is reported one-sided; **the band model recovers the leading edge across every band width and response width, and a one-lobe fit falls short by exactly the band's half-width** — the measurement that ruled out correcting it with a response width; **a head distance is never read from behind the origin**, on a profile whose trailing lobe is deliberately the brighter of the two |
 | `spark/inverse/test_front_perimeter_fit.py` ✅ | The ray-ellipse solve is exact on circles, rotated ellipses and an offset origin; directions outside the fitted sector carry no distance; a rendered arc carries unit mass and a fit recovers the arc it was given |
-| `spark/inverse/test_map_deconvolution.py` ✅ | A point source blurs to the response itself and the operator conserves mass; **the transpose is the adjoint**, which Richardson-Lucy needs to converge at all; a blurred annulus comes back at its own radius; total variation smooths a noisy recovery and a zero weight recovers the plain iteration exactly |
-| `spark/inverse/test_front_contour.py` ✅ | A closed shape is covered everywhere and **an arc reports no front where it has none**; the extractor finds a finite-width ring's outer half-maximum crossing rather than its centre |
+| `config/test_simulation_context_factory.py` ✅ | Every ladder scene builds its named components; **the cellular automaton gives the same fire twice from one seed and two fires from two seeds** — without the first, nothing measured on a probabilistic spread model means anything, and without the second a seed that is stored but never passed looks identical to one that works |
+| `spark/inverse/test_map_deconvolution.py` ✅ | A point source blurs to the response itself and the operator conserves mass; **the transpose is the adjoint**, which Richardson-Lucy needs to converge at all; **a response evaluated away from the grid centre blurs in place and does not displace what it recovers**, which is the defect that set the whole front position tier's error, and a *fractional* offset is taken out too, to under a hundredth of a cell, with the adjoint and the mass both surviving the ramp; a blurred annulus comes back at its own radius; total variation smooths a noisy recovery and a zero weight recovers the plain iteration exactly |
+| `spark/inverse/test_front_contour.py` ✅ | A closed shape is covered everywhere and **an arc reports no front where it has none**; the extractor finds a finite-width ring's outer half-maximum crossing rather than its centre; **an arc with a dim halo about the origin claims every direction ungated and its own sector once gated on wedge mass**, and the gate refuses directions without moving a radius it keeps; a ragged closed ring loses its dim half to a global level and gets it back from a per-ray one, while the global level still floors a direction carrying only a halo |
 | `utils/metrics/test_contour_metrics.py` ✅ | Hausdorff catches one stray point; the radial error skips directions only one side covers; **the sector overlap reduces to the plan's enclosed-area ratio when both contours close** and charges for coverage one side lacks |
 | `utils/visualization/test_fire_shape_plotter.py` ✅ | The frame carries one panel each; both share the domain and the aspect ratio, without which the two shapes cannot be compared by eye; every estimate gets its own ellipse; the frame survives a window that located nothing |
 
@@ -2012,8 +2113,8 @@ All extensions in one table, sorted by likely implementation order.
 | Fire characterisation Tier 1: bearing | `inverse/fire_bearing.py`, `utils/metrics/fire_front_ground_truth.py`, `utils/metrics/bearing_metrics.py` | None | ✅ done |
 | Fire characterisation Tier 2: rate of spread | `inverse/fire_extent.py`, `inverse/fire_rate_of_spread.py`, `utils/metrics/spread_metrics.py` | None | ✅ done |
 | Fire characterisation Tier 2 extension: Richards elliptical model fit | `inverse/elliptical_spread_model.py` | None | Not needed yet; the moment path already meets the gate |
-| Fire characterisation Tier 3: front position | `inverse/front_radial_profile.py`, `inverse/front_perimeter_fit.py`, `inverse/map_deconvolution.py`, `inverse/front_contour.py`, `utils/metrics/contour_metrics.py` | None | ✅ built; head distance works, contours do not |
-| Fire characterisation Tier 3 extension: a contour model that can be open | `inverse/front_contour.py` | None | Next — a level set always closes, which is what caps the overlap |
+| Fire characterisation Tier 3: front position | `inverse/front_radial_profile.py`, `inverse/front_perimeter_fit.py`, `inverse/map_deconvolution.py`, `inverse/front_contour.py`, `utils/metrics/contour_metrics.py` | None | ✅ done; Gate 3 holds 5 of 5 |
+| Fire characterisation Tier 3 extension: angular support gate | `inverse/front_contour.py` | None | ✅ built and tested; inert on `configs/f1` once the kernel was centred |
 | Balbi 2020 fixed-point ROS | `rate_of_spread_equations.py` | None | If time allows |
 | Interpolated wind field | New file | None | If time allows |
 | Terrain-aware path loss | New wrapper file | None | If time allows |

@@ -140,3 +140,36 @@ def test_an_unknown_fuel_preset_is_rejected() -> None:
                 config, fire=dataclasses.replace(config.fire, fuel_preset_name="lava")
             )
         )
+
+
+def build_automaton_fire(seed: int) -> object:
+    """Runs the automaton for a few steps from a scene built with `seed`."""
+    forward_config = load_forward_simulation_configuration(Path("configs/f2"))
+    forward_config = dataclasses.replace(
+        forward_config,
+        fire=dataclasses.replace(forward_config.fire, spread_engine_random_seed=seed),
+    )
+    context = build_simulation_context(forward_config)
+    state = context.spread_engine.initialize(
+        context.mesh, context.fuel_field, context.wind_field
+    )
+    state = context.spread_engine.ignite_cells(state, context.ignition_cell_indices)
+    for _ in range(8):
+        state = context.spread_engine.step(state, 1.8)
+    return state.is_burning.copy()
+
+
+def test_the_automaton_gives_the_same_fire_twice_from_one_seed() -> None:
+    """Without this the scene is a different experiment on every run.
+
+    The engine's own default leaves its stream unseeded, so two runs of one
+    configuration produced 159 and 166 burning cells at the same instant and a
+    final-frame sector overlap of 0.68 against 0.28. Nothing measured on a
+    probabilistic spread model means anything until this holds.
+    """
+    assert (build_automaton_fire(0) == build_automaton_fire(0)).all()
+
+
+def test_two_seeds_give_two_fires() -> None:
+    """The seed has to be reaching the engine, not merely being stored."""
+    assert not (build_automaton_fire(0) == build_automaton_fire(7)).all()

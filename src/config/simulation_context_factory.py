@@ -10,12 +10,14 @@ import numpy as np
 
 from src.config.component_registry import (
     ATMOSPHERIC_ABSORPTION_CHANNEL,
+    CELLULAR_AUTOMATON_ENGINE,
     CHANNEL_REGISTRY,
     EXPONENTIAL_ATTENUATION_CHANNEL,
     MESH_REGISTRY,
     PATCHY_DENSITY_FIELD,
     PATCHY_TREES_FIELD,
     RANDOM_TREES_FIELD,
+    RATE_OF_SPREAD_ENGINE,
     SCALAR_FIELD_REGISTRY,
     SPREAD_ENGINE_REGISTRY,
     SQUARE_GRID_MESH,
@@ -29,6 +31,9 @@ from src.spark.acoustic.channel_protocol import ChannelProtocol
 from src.spark.acoustic.receiver_placement import place_receivers_from_configuration
 from src.spark.fields.scalar_field_protocol import ScalarFieldProtocol
 from src.spark.fields.vector_field_protocol import VectorFieldProtocol
+from src.spark.fire.cellular_automaton_spread_engine import (
+    CellularAutomatonSpreadEngineConfig,
+)
 from src.spark.fire.fuel_properties import FuelProperties
 from src.spark.fire.spread_engine_protocol import SpreadEngineProtocol
 from src.spark.terrain.mesh_protocol import MeshProtocol
@@ -219,8 +224,10 @@ def build_spread_engine(
 ) -> SpreadEngineProtocol:
     """Instantiate the spread engine the configuration names.
 
-    The rate-of-spread engine takes the fuel bed; the cellular automaton and
-    the static source engine take their own defaults.
+    The rate-of-spread engine takes the fuel bed; the cellular automaton takes
+    the scene's seed, because it is the only engine that draws random numbers
+    and its own default leaves them unseeded; the static source engine takes
+    its defaults.
 
     Args:
         config: Run configuration.
@@ -235,8 +242,15 @@ def build_spread_engine(
     engine_class = resolve_registered_name(
         SPREAD_ENGINE_REGISTRY, config.fire.spread_engine_name, "spread engine"
     )
-    if config.fire.spread_engine_name == "rate_of_spread":
+    if config.fire.spread_engine_name == RATE_OF_SPREAD_ENGINE:
         engine: SpreadEngineProtocol = engine_class(fuel)
+        return engine
+    if config.fire.spread_engine_name == CELLULAR_AUTOMATON_ENGINE:
+        engine = engine_class(
+            CellularAutomatonSpreadEngineConfig(
+                random_seed=config.fire.spread_engine_random_seed
+            )
+        )
         return engine
     engine = engine_class()
     return engine

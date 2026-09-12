@@ -1,0 +1,20 @@
+# The propagation-equation engine, on configs/f2's grid, array and clock.
+# This scene exists to be subtracted. f2 changes two things against f1 at
+# once - the spread model and the 100 x 100 grid it runs on - and without a
+# control there is no way to say which of them moved a number. Every file
+# here is f2's but for this one key.
+[fire]
+fuel_preset_name = "pine_needle_litter"
+spread_engine_name = "rate_of_spread"
+fuel_field_type = "uniform"
+ignition_cell_x_fraction = 0.5
+ignition_cell_y_fraction = 0.5
+# Thirty seconds because f2 runs thirty seconds. This front reaches only
+# 7.0 m in that time against the automaton's 10.7 m, and that difference is
+# a result rather than a mismatch to correct: the two models spread at
+# different rates and forcing them to the same size would mean running them
+# for different times, which would confound the comparison with everything
+# else a longer run changes.
+simulation_duration_s = 30.0
+time_step_safety_factor = 0.9
+emission_model = "front_only"

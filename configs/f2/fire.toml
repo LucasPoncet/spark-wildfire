@@ -1,0 +1,31 @@
+# The probabilistic cellular automaton, not the propagation-equation engine.
+# Fire crossing an edge is a coin weighted by wind alignment and local fuel
+# rather than an arrival time from a rate of spread, so the front it produces
+# is ragged where f1's is smooth. That is the point of the scene: every
+# characterisation quantity downstream is a moment of a map, and a moment does
+# not care whether the front is smooth, but the estimators were only ever
+# measured against a smooth one.
+[fire]
+fuel_preset_name = "pine_needle_litter"
+spread_engine_name = "cellular_automaton"
+fuel_field_type = "uniform"
+ignition_cell_x_fraction = 0.5
+ignition_cell_y_fraction = 0.5
+# Thirty seconds, not f1's fifty, and the reason is geometric rather than
+# a preference. The automaton advances about one cell per timestep along
+# its diagonals and the timestep is CFL-bounded, so its front reaches
+# 18.1 m by t = 50 s and would swallow the 22 m receiver ring. At t = 30 s
+# it stands at 10.7 m, which is 0.49 of the ring radius - the same fraction
+# f1's front reaches at its own fifty seconds. Matching that fraction is
+# what keeps the comparison about the spread model rather than about a
+# fire that has grown outside its array.
+simulation_duration_s = 30.0
+time_step_safety_factor = 0.9
+# The automaton draws a coin per neighbour per step, and its own default
+# leaves that stream unseeded: two runs of this file produced different
+# fires, 159 and 166 burning cells at t = 30 s, and a final-frame sector
+# overlap of 0.68 in one realisation and 0.28 in another. That spread is
+# wider than most of the effects this scene is being used to measure, so
+# the seed is set here and every figure below is one realisation of it.
+spread_engine_random_seed = 0
+emission_model = "front_only"

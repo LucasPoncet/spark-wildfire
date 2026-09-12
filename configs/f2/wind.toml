@@ -1,0 +1,10 @@
+# 12 m/s, blowing towards +x. This is the one value the scene had to raise off
+# the shipped default, and the reason is measured, not stylistic: the Balbi
+# rate of spread at the shipped 2 m/s is 0.020 m/s, which over the fifty
+# seconds this scene runs moves the front one metre. There is no shape to
+# estimate in a one-metre fire. At 12 m/s the rate of spread is 0.245 m/s and
+# the front reaches twelve metres across by t = 50 s, which is the regime the
+# multi-source estimator is already shown to resolve on configs/m3.
+[wind]
+wind_speed_m_per_s = 12.0
+wind_bearing_rad = 0.0

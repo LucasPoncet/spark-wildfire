@@ -1,3 +1,12 @@
+# INHERITED FROM configs/f1, NOT RE-MEASURED HERE. Every tuned value below
+# - the imaging family, the two percentiles, the contour level - was settled
+# by audits run on f1's scene and is carried over so that a difference
+# between scenes is a difference in the fire rather than in how it was
+# imaged. The one exception is the framing, which has to fit this scene's
+# shorter observation window, and the front's maximum radius, which has to
+# fit its smaller domain. Treat any value here as provisional until an audit
+# is run on this scene.
+
 # Settings for characterising bearing, rate of spread and front position from a
 # sequence of imaging maps. The detection settings in localization.toml are not
 # touched by any of this, so every committed localisation result stays
@@ -30,8 +39,8 @@ pairwise_combinator = "unscaled_sum"
 # linear in the correlation curve where max is not.
 pooling = "mean"
 grid_spacing_m = 0.5
-frame_duration_s = 4.0
-frame_hop_s = 2.0
+frame_duration_s = 2.5
+frame_hop_s = 1.25
 # Raised from the plan's starting value of 60. The centroid bias over the region
 # a fifty-second front occupies runs at 3.2 m at 60, which fails the gate by an
 # order of magnitude: the response is wide enough there that the domain boundary
@@ -53,8 +62,8 @@ extent_background_percentile = 98.0
 
 [point_spread_function]
 calibration_grid_spacing_m = 5.0
-centroid_bias_field_path = "results/calibration/f1/centroid_bias_field.npz"
-covariance_field_path = "results/calibration/f1/psf_covariance_field.npz"
+centroid_bias_field_path = "results/calibration/f2/centroid_bias_field.npz"
+covariance_field_path = "results/calibration/f2/psf_covariance_field.npz"
 
 [bearing]
 direction_count = 360
@@ -74,7 +83,7 @@ fusion_weights = { centroid_drift = 1.0, centroid_offset = 0.8, principal_axis =
 
 [extent]
 shape_factor = 1.4142135623730951
-shape_factor_path = "results/calibration/f1/shape_factor.json"
+shape_factor_path = "results/calibration/f2/shape_factor.json"
 minimum_resolved_frames = 5
 
 [spread_model]
@@ -84,28 +93,42 @@ seed_count = 3
 
 [front]
 radial_profile_step_m = 0.25
-maximum_radius_m = 30.0
-deconvolution_iteration_count = 50
-total_variation_weight = 0.01
-# Lowered from 0.5 once the deconvolution kernel was centred. A level is a
-# fraction of the density's global peak, and the peak sits at the brightest
-# part of the arc, so a high level keeps only that part and the flanks go
-# unclaimed. At 0.5 the contour covered 0.106 of the circle against a true
-# 0.283 and the sector overlap on the final frame was 0.407. The optimum is
-# flat between 0.10 and 0.20 - mean overlap 0.578, 0.573, 0.563 - and 0.15 is
-# the middle of it: final-frame overlap 0.865, radial error 0.24 m.
-contour_level_fraction = 0.15
-# Zero, so the level above is the only one this scene uses. Its front is an
-# open arc of fairly even brightness, so a per-ray level buys nothing here
-# and would only tighten the contour in the bright directions. configs/f2
-# is where it earns its place.
+# Twenty metres, not f1's thirty. Rays start at the ignition point and
+# the nearest domain edge is 25.5 m away, so a longer reach would sample
+# the clamped edge of the grid and read its repeated value as signal.
+maximum_radius_m = 20.0
+# Four, against f1's fifty, chosen on one stated rule rather than by
+# hunting the gate: the largest count at which the contour's angular
+# coverage still matches the fire's. Richardson-Lucy sharpens
+# monotonically, and on an extended source sharpening means concentrating
+# - measured on the final frame against a true coverage of 0.95, the
+# contour covers 1.000, 0.639, 0.422, 0.356 and 0.272 of the circle at 4,
+# 5, 10, 50 and 100 iterations. f1's front is a compact arc and does not
+# suffer; this one is a closed ring and does.
+deconvolution_iteration_count = 4
+# Raised from f1's 0.01. The prior prefers piecewise-constant regions with
+# sharp edges, which is what holds an extended ring together where a
+# weaker one lets the iteration pull it apart: at four iterations it takes
+# the final-frame sector overlap from 0.530 to 0.575 and the radial error
+# from 2.38 m to 2.03 m.
+total_variation_weight = 0.05
+# The floor, set by the same coverage rule as the iteration count: at four
+# iterations the contour covers 1.000, 0.656 and 0.572 of the circle at
+# floors of 0.05, 0.08 and 0.12, against a true 0.95. The per-ray level
+# below cannot rescue a direction whose own peak sits under this, so on a
+# closed front the floor decides coverage outright.
+contour_level_fraction = 0.05
+# Left at f1's zero. A per-ray level does sharpen the radius here - error
+# 2.03, 1.70, 1.47, 1.30 m at 0.0, 0.2, 0.3 and 0.4, with coverage
+# unchanged throughout - but every positive value turns the resolution
+# onset slope from -0.157 to about +0.01, trading a criterion the scene
+# passes for one it does not. The sharpening is real and is recorded here
+# rather than taken.
 contour_local_level_fraction = 0.0
-# Least wedge mass a direction must hold before the contour will claim a front
-# there. Inert on this scene and kept deliberately: it guards a failure mode
-# that was real here until the kernel was centred, where a dim residue about
-# the origin crossed the global level in every direction and handed back a
-# radius belonging to the arc rather than to the direction it was read in. A
-# centred kernel leaves no such residue, so the level gate alone now suffices,
-# and any positive value costs overlap - 0.865 at zero, 0.840 at 0.15, 0.312 at
-# 0.40. Raise it only on a scene where coverage exceeds the truth's.
+# Least wedge mass a direction must hold before the contour will claim a
+# front there. Zero here, and not measured on this scene: the figures that
+# settled it were taken on f1, where a centred kernel leaves no residue for
+# it to refuse. This scene's difficulty is the opposite one - it claims too
+# few directions rather than too many - so a gate that removes directions
+# could only make it worse.
 contour_support_fraction = 0.0

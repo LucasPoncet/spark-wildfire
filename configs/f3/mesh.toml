@@ -1,0 +1,12 @@
+# A 100 x 100 mesh, and a 100 x 100 imaging grid to match. The two tile
+# differently and the extents have to differ by half a cell to land on the
+# same count: the mesh lays cells on its nodes, so it needs
+# extent / spacing + 1 = 100 and an extent of 49.5 m, while the candidate
+# grid tiles cell centres and needs the domain's 50.0 m. Both come out at
+# 100 x 100, the imaging spacing stays at the 0.5 m the linearity gate was
+# read at, and the ignition cell still lands on (25, 25) exactly.
+[mesh]
+extent_x_m = 49.5
+extent_y_m = 49.5
+cell_spacing_m = 0.5
+use_diagonal_neighbors = true

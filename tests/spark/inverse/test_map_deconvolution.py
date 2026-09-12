@@ -181,3 +181,181 @@ def test_the_l_curve_trades_misfit_against_roughness() -> None:
     )
     assert misfits.size == 3
     assert roughnesses[0] >= roughnesses[-1]
+
+
+ODD_SIZE: int = 97
+ODD_SHAPE: tuple[int, int] = (ODD_SIZE, ODD_SIZE)
+ODD_CENTRE: int = ODD_SIZE // 2
+
+
+def build_odd_axes() -> tuple[np.ndarray, np.ndarray]:
+    """An odd grid, so one cell sits exactly on the centre and none tie."""
+    index = np.arange(ODD_SIZE, dtype=np.float64) - ODD_CENTRE
+    return np.meshgrid(index, index)
+
+
+def build_odd_response(shift_cells: float) -> np.ndarray:
+    """The response, evaluated `shift_cells` from the grid centre.
+
+    Which is what a caller imaging a fire actually has: the response is
+    computed at the source being imaged, not at the middle of the domain.
+    """
+    offset_x, offset_y = build_odd_axes()
+    return np.asarray(
+        np.exp(
+            -0.5
+            * ((offset_x - shift_cells) ** 2 + offset_y**2)
+            / RESPONSE_WIDTH_CELLS**2
+        ).ravel(),
+        dtype=np.float64,
+    )
+
+
+def build_odd_annulus(radius_cells: float, width_cells: float) -> np.ndarray:
+    offset_x, offset_y = build_odd_axes()
+    radii = np.sqrt(offset_x**2 + offset_y**2)
+    return np.asarray(
+        np.exp(-0.5 * ((radii - radius_cells) / width_cells) ** 2), dtype=np.float64
+    )
+
+
+def measure_odd_centroid_cells(density: np.ndarray) -> tuple[float, float]:
+    offset_x, offset_y = build_odd_axes()
+    weights = np.clip(density, 0.0, None)
+    total = float(np.sum(weights))
+    return (
+        float(np.sum(weights * offset_x) / total),
+        float(np.sum(weights * offset_y) / total),
+    )
+
+
+def measure_odd_ring_radius_cells(density: np.ndarray) -> float:
+    offset_x, offset_y = build_odd_axes()
+    radii = np.sqrt(offset_x**2 + offset_y**2)
+    weights = np.clip(density, 0.0, None)
+    return float(np.sum(weights * radii) / np.sum(weights))
+
+
+@pytest.mark.parametrize("shift_cells", [0, 4, 12, 20])
+def test_a_response_blurs_in_place_wherever_it_was_evaluated(shift_cells: int) -> None:
+    """A kernel carries its own offset, and that offset is not the density's."""
+    operator = build_point_spread_operator(
+        build_odd_response(shift_cells), ODD_SHAPE, GRID_SPACING_M
+    )
+    source = np.zeros(ODD_SHAPE)
+    source[ODD_CENTRE, ODD_CENTRE] = 1.0
+    centre_x_cells, centre_y_cells = measure_odd_centroid_cells(
+        apply_operator(operator, source)
+    )
+    assert centre_x_cells == pytest.approx(0.0, abs=1e-6)
+    assert centre_y_cells == pytest.approx(0.0, abs=1e-6)
+
+
+@pytest.mark.parametrize("shift_cells", [4, 12, 20])
+def test_an_off_centre_response_does_not_displace_what_it_recovers(
+    shift_cells: int,
+) -> None:
+    """The defect this centring exists to stop.
+
+    The map is blurred by the response as it physically acts, in place. The
+    operator is built from a response evaluated somewhere else, as every caller
+    imaging a moving fire must. Without re-centring the recovered density comes
+    back displaced by that separation, and a front read off it is wrong by the
+    distance the fire has travelled.
+    """
+    observed = apply_operator(
+        build_point_spread_operator(build_odd_response(0), ODD_SHAPE, GRID_SPACING_M),
+        build_odd_annulus(12.0, 1.5),
+    )
+    recovered = deconvolve_with_total_variation(
+        observed,
+        build_point_spread_operator(
+            build_odd_response(shift_cells), ODD_SHAPE, GRID_SPACING_M
+        ),
+        0.01,
+        40,
+    )
+    centre_x_cells, centre_y_cells = measure_odd_centroid_cells(recovered)
+    assert centre_x_cells == pytest.approx(0.0, abs=0.5)
+    assert centre_y_cells == pytest.approx(0.0, abs=0.5)
+    assert measure_odd_ring_radius_cells(recovered) == pytest.approx(12.0, abs=1.0)
+
+
+def test_the_operator_does_not_depend_on_where_the_response_was_evaluated() -> None:
+    density = build_odd_annulus(10.0, 2.0)
+    assert apply_operator(
+        build_point_spread_operator(build_odd_response(15), ODD_SHAPE, GRID_SPACING_M),
+        density,
+    ) == pytest.approx(
+        apply_operator(
+            build_point_spread_operator(
+                build_odd_response(0), ODD_SHAPE, GRID_SPACING_M
+            ),
+            density,
+        ),
+        abs=1e-9,
+    )
+
+
+@pytest.mark.parametrize("shift_cells", [0.25, 0.37, 4.37, 20.8])
+def test_a_sub_cell_response_offset_is_taken_out_by_the_phase_ramp(
+    shift_cells: float,
+) -> None:
+    """What the roll alone cannot do, since it moves whole cells only.
+
+    A roll leaves up to half a cell — 0.25 m at the imaging spacing, which is
+    the same order as the final-frame radial error it would then sit inside.
+    The phase ramp takes the residue to under a hundredth of a cell.
+    """
+    operator = build_point_spread_operator(
+        build_odd_response(shift_cells), ODD_SHAPE, GRID_SPACING_M
+    )
+    source = np.zeros(ODD_SHAPE)
+    source[ODD_CENTRE, ODD_CENTRE] = 1.0
+    centre_x_cells, centre_y_cells = measure_odd_centroid_cells(
+        apply_operator(operator, source)
+    )
+    assert centre_x_cells == pytest.approx(0.0, abs=0.02)
+    assert centre_y_cells == pytest.approx(0.0, abs=0.02)
+
+
+def test_the_sub_cell_correction_leaves_the_mass_alone() -> None:
+    """The ramp touches every frequency but the zero one, so mass is untouched."""
+    density = build_odd_annulus(10.0, 2.0)
+    blurred = apply_operator(
+        build_point_spread_operator(
+            build_odd_response(0.37), ODD_SHAPE, GRID_SPACING_M
+        ),
+        density,
+    )
+    assert float(np.sum(blurred)) == pytest.approx(float(np.sum(density)))
+
+
+def test_the_transpose_is_still_the_adjoint_under_a_sub_cell_shift() -> None:
+    """A ramp that broke the adjoint would make Richardson-Lucy converge wrong."""
+    operator = build_point_spread_operator(
+        build_odd_response(0.37), ODD_SHAPE, GRID_SPACING_M
+    )
+    generator = np.random.default_rng(11)
+    left = generator.normal(size=ODD_SHAPE)
+    right = generator.normal(size=ODD_SHAPE)
+    assert float(np.sum(right * apply_operator(operator, left))) == pytest.approx(
+        float(np.sum(left * apply_operator_transpose(operator, right))), rel=1e-9
+    )
+
+
+def test_a_sub_cell_offset_response_recovers_a_ring_in_place() -> None:
+    observed = apply_operator(
+        build_point_spread_operator(build_odd_response(0), ODD_SHAPE, GRID_SPACING_M),
+        build_odd_annulus(12.0, 1.5),
+    )
+    recovered = deconvolve_with_total_variation(
+        observed,
+        build_point_spread_operator(build_odd_response(8.4), ODD_SHAPE, GRID_SPACING_M),
+        0.01,
+        40,
+    )
+    centre_x_cells, centre_y_cells = measure_odd_centroid_cells(recovered)
+    assert centre_x_cells == pytest.approx(0.0, abs=0.2)
+    assert centre_y_cells == pytest.approx(0.0, abs=0.2)
+    assert measure_odd_ring_radius_cells(recovered) == pytest.approx(12.0, abs=1.0)

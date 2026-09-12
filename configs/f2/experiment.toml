@@ -1,0 +1,4 @@
+[experiment]
+name = "f2"
+title = "Fire characterisation under a probabilistic spread model"
+description = "One front spreading from the middle of a 50 m domain under the Alexandridis-style cellular automaton, listened to by a ring of twenty receivers. The mesh and the imaging grid are both 100 x 100. Matches configs/f3 in every respect but the spread engine, so the difference between the two is the spread model and nothing else."

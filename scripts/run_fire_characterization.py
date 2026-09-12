@@ -761,7 +761,10 @@ def main() -> None:
     figure_path = figure_directory / "tier12_fire_characterization.svg"
     figure.savefig(figure_path, bbox_inches="tight")
 
-    metrics_path = METRICS_ROOT / "tier12_fire_characterization.json"
+    metrics_path = (
+        METRICS_ROOT
+        / f"{forward_config.experiment.name}_tier12_fire_characterization.json"
+    )
     write_metrics_document(
         {
             "generated_at": datetime.now(UTC).isoformat(),

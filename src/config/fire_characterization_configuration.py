@@ -172,8 +172,17 @@ class FrontConfiguration:
         maximum_radius_m: Furthest radius a profile is extracted to.
         deconvolution_iteration_count: Richardson-Lucy iterations.
         total_variation_weight: Regularisation weight on the source density.
-        contour_level_fraction: Level, as a fraction of the peak, a contour is
-            extracted at.
+        contour_level_fraction: Floor level, as a fraction of the density's
+            global peak, a contour is extracted at.
+        contour_local_level_fraction: Level as a fraction of each ray's own
+            peak, which a direction must clear as well as the floor. It is
+            what lets a front be found where the fire burns dimly; zero leaves
+            the global floor as the only level.
+        contour_support_fraction: Least wedge mass a direction must hold, as a
+            fraction of the best direction's, before the contour will claim a
+            front there. A level is measured against the density's global peak
+            and so says nothing about the direction it is read in; this does,
+            and it is what keeps an open arc open.
     """
 
     radial_profile_step_m: float
@@ -181,6 +190,8 @@ class FrontConfiguration:
     deconvolution_iteration_count: int
     total_variation_weight: float
     contour_level_fraction: float
+    contour_local_level_fraction: float
+    contour_support_fraction: float
 
 
 @dataclass(frozen=True)
@@ -265,5 +276,7 @@ def load_fire_characterization_configuration(
             deconvolution_iteration_count=int(front["deconvolution_iteration_count"]),
             total_variation_weight=float(front["total_variation_weight"]),
             contour_level_fraction=float(front["contour_level_fraction"]),
+            contour_local_level_fraction=float(front["contour_local_level_fraction"]),
+            contour_support_fraction=float(front["contour_support_fraction"]),
         ),
     )

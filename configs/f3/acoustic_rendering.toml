@@ -1,0 +1,12 @@
+# Three-second windows rather than f1's five, so a thirty-second run still
+# yields ten of them and the frame-count-dependent estimators - the drift
+# bearing, the rate of spread fit and both bootstraps - are asked the same
+# question they were asked on f1. Tier 0 measured the cost: the speckle
+# floor falls with shorter frames rather than rising, so this is not a
+# trade against map quality.
+[acoustic_rendering]
+sample_rate_hz = 44100
+segment_duration_s = 3.0
+reference_distance_m = 1.0
+source_signal_seed = 42
+observation_interval_s = 3.0

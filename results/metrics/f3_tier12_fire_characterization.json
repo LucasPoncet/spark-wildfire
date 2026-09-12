@@ -1,0 +1,191 @@
+{
+  "background_percentile": 98.0,
+  "bearing": {
+    "centroid_drift": {
+      "bearing_deg": -0.23884146349710159,
+      "circular_standard_deviation_deg": 0.6173463376117095,
+      "error_deg": -0.23884146349710159,
+      "frames_used": 10
+    },
+    "centroid_offset_per_frame": {
+      "fraction_within_10_deg": 1.0,
+      "fraction_within_20_deg": 1.0,
+      "frame_count": 4,
+      "median_absolute_error_deg": 0.25445718114228166,
+      "ninetieth_percentile_absolute_error_deg": 0.5909351628231319
+    },
+    "drift_and_skewness_agreement_fraction": 0.0,
+    "fused": {
+      "bearing_deg": -0.23566528164000936,
+      "circular_standard_deviation_deg": 0.5942060753725417,
+      "error_deg": -0.23566528164000936,
+      "resultant_length": 0.9999462241556965
+    },
+    "principal_axis_per_frame": {
+      "fraction_within_10_deg": 0.0,
+      "fraction_within_20_deg": 0.0,
+      "frame_count": 4,
+      "median_absolute_error_deg": 83.33628725497312,
+      "ninetieth_percentile_absolute_error_deg": 86.67221748530626
+    },
+    "settled_after_s": 20.0,
+    "skewness_per_frame": {
+      "fraction_within_10_deg": 0.0,
+      "fraction_within_20_deg": 0.25,
+      "frame_count": 4,
+      "median_absolute_error_deg": 39.63035375691058,
+      "ninetieth_percentile_absolute_error_deg": 50.52680346146638
+    },
+    "true_bearing_deg": 0.0,
+    "true_bearing_rad": 0.0
+  },
+  "configuration_directory": "configs\\f3",
+  "extent_background_percentile": 98.0,
+  "frames": [
+    {
+      "active_cell_count": 2,
+      "estimated_semi_axis_major_m": 0.3173229518378031,
+      "is_resolved": true,
+      "response_semi_axis_major_m": 1.3026300119406529,
+      "skewness_bearing_deg": 22.73599349574729,
+      "time_s": 3.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 0.3535533905932738
+    },
+    {
+      "active_cell_count": 5,
+      "estimated_semi_axis_major_m": 1.8383331398428415,
+      "is_resolved": false,
+      "response_semi_axis_major_m": 1.3218697307301057,
+      "skewness_bearing_deg": 277.80761080641105,
+      "time_s": 6.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 0.447213595499958
+    },
+    {
+      "active_cell_count": 12,
+      "estimated_semi_axis_major_m": 1.8652885470000455,
+      "is_resolved": false,
+      "response_semi_axis_major_m": 1.3302757593742665,
+      "skewness_bearing_deg": 212.46859486237264,
+      "time_s": 9.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 0.7637626158259733
+    },
+    {
+      "active_cell_count": 16,
+      "estimated_semi_axis_major_m": 0.3747125318464306,
+      "is_resolved": true,
+      "response_semi_axis_major_m": 1.3124318768988268,
+      "skewness_bearing_deg": 349.30201423599954,
+      "time_s": 12.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 0.9354143466934854
+    },
+    {
+      "active_cell_count": 24,
+      "estimated_semi_axis_major_m": 0.6786626537845032,
+      "is_resolved": true,
+      "response_semi_axis_major_m": 1.3179627040636908,
+      "skewness_bearing_deg": 355.1595833530355,
+      "time_s": 15.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 1.3070322617798436
+    },
+    {
+      "active_cell_count": 28,
+      "estimated_semi_axis_major_m": 0.8434698177897493,
+      "is_resolved": true,
+      "response_semi_axis_major_m": 1.3165018378083673,
+      "skewness_bearing_deg": 236.60576200379057,
+      "time_s": 18.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 1.5
+    },
+    {
+      "active_cell_count": 35,
+      "estimated_semi_axis_major_m": 1.1122664415647407,
+      "is_resolved": true,
+      "response_semi_axis_major_m": 1.3146874633106922,
+      "skewness_bearing_deg": 340.87360851670394,
+      "time_s": 21.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 1.9198214202665531
+    },
+    {
+      "active_cell_count": 38,
+      "estimated_semi_axis_major_m": 1.3078228137888404,
+      "is_resolved": true,
+      "response_semi_axis_major_m": 1.3112509020559948,
+      "skewness_bearing_deg": 331.07912073351486,
+      "time_s": 24.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 2.115108557622118
+    },
+    {
+      "active_cell_count": 42,
+      "estimated_semi_axis_major_m": 1.754250351220174,
+      "is_resolved": true,
+      "response_semi_axis_major_m": 1.3039599136796909,
+      "skewness_bearing_deg": 309.3930643039063,
+      "time_s": 27.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 2.627691364061218
+    },
+    {
+      "active_cell_count": 44,
+      "estimated_semi_axis_major_m": 1.9801471071164112,
+      "is_resolved": true,
+      "response_semi_axis_major_m": 1.2966694884328565,
+      "skewness_bearing_deg": 309.66017175266404,
+      "time_s": 30.0,
+      "true_bearing_deg": 0.0,
+      "true_semi_axis_major_m": 2.903759318851716
+    }
+  ],
+  "generated_at": "2026-09-12T12:34:44.630513+00:00",
+  "ignition_position_xy_m": [
+    24.5,
+    24.5
+  ],
+  "imaging_map": {
+    "grid_spacing_m": 0.5,
+    "pairwise_combinator": "unscaled_sum",
+    "phase_transform_exponent": 0.0,
+    "pooling": "mean"
+  },
+  "rate_of_spread": {
+    "back": {
+      "absolute_error_m_per_s": 0.025699640668261768,
+      "estimated_m_per_s": 0.06736630733492843,
+      "relative_error": 0.6167913760382825,
+      "true_m_per_s": 0.041666666666666664
+    },
+    "estimate": {
+      "back_rate_of_spread_m_per_s": 0.06736630733492843,
+      "bearing_rad": -0.004113135097257905,
+      "centroid_speed_m_per_s": 0.14062656413162175,
+      "closure_residual_fraction": 0.012874972528896526,
+      "closure_residual_m_per_s": 0.002837822766559084,
+      "confidence_interval_m_per_s": [
+        0.1688092581269406,
+        0.2643178692356353
+      ],
+      "expansion_rate_m_per_s": 0.07794270224287697,
+      "frames_used": 8,
+      "head_rate_of_spread_m_per_s": 0.2204138890541233
+    },
+    "every_unresolved_flag_is_honest": true,
+    "frame_count": 10,
+    "head": {
+      "absolute_error_m_per_s": -0.02958611094587671,
+      "estimated_m_per_s": 0.2204138890541233,
+      "relative_error": 0.11834444378350684,
+      "true_m_per_s": 0.25
+    },
+    "maximum_extent_relative_error": 0.5994154535142964,
+    "median_extent_relative_error": 0.40115823600566036,
+    "resolved_frame_count": 8
+  },
+  "receiver_count": 20
+}

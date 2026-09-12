@@ -1,0 +1,4 @@
+[experiment]
+name = "f3"
+title = "Propagation-equation control on the 100 x 100 grid"
+description = "configs/f2 in every respect but the spread engine: the same 100 x 100 mesh and imaging grid, the same ring of twenty receivers at 22 m, the same thirty seconds in ten windows, driven by the Balbi rate-of-spread engine instead of the cellular automaton. It exists so that a difference between f1 and f2 can be attributed to the spread model or to the grid, rather than to the two of them together."

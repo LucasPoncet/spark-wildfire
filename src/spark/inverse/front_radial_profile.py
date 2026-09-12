@@ -305,12 +305,12 @@ def estimate_front_band_by_matched_filter(
         )
         return np.asarray(model - normalised, dtype=np.float64)
 
-    seed_centre_m = float(radii[int(np.argmax(normalised))])
+    seed_centre_m = _locate_forward_peak_m(radii, normalised)
     solution = least_squares(
         residuals,
         x0=np.array([max(seed_centre_m - 1.0, 0.0), seed_centre_m + 1.0, 1.0]),
         bounds=(
-            np.array([-maximum_distance_m, -maximum_distance_m, 0.1]),
+            np.array([-maximum_distance_m, 0.0, 0.1]),
             np.array([maximum_distance_m, maximum_distance_m, 10.0]),
         ),
         diff_step=1e-3,
@@ -322,6 +322,35 @@ def estimate_front_band_by_matched_filter(
         half_width_m=float(abs(outer_edge_m - inner_edge_m) / 2.0),
         residual=float(np.sqrt(np.mean(solution.fun**2))),
     )
+
+
+def _locate_forward_peak_m(
+    radii_m: Float64Array, profile_values: Float64Array
+) -> float:
+    """Radius of the profile's brightest point ahead of the origin.
+
+    A head distance is the front's distance *in the direction it was asked
+    about*, so the search runs over non-negative radii only. On a fire that
+    burns out behind itself the distinction is idle — there is nothing behind
+    to find — but a fire that spreads upwind as well puts a lobe on each side,
+    and seeding from the profile's global maximum lets the fit converge on the
+    one behind the origin and report a head distance of, say, minus four
+    metres. Measured on `configs/f2`, that happened on four frames of ten.
+
+    Args:
+        radii_m: Radii of the measured profile, ascending.
+        profile_values: The measured profile, same shape.
+
+    Returns:
+        The radius of the largest forward sample, or zero when the profile
+        reaches no further than the origin.
+    """
+    radii = np.asarray(radii_m, dtype=np.float64)
+    forward = radii >= 0.0
+    if not bool(np.any(forward)):
+        return 0.0
+    forward_values = np.where(forward, np.asarray(profile_values), -np.inf)
+    return float(radii[int(np.argmax(forward_values))])
 
 
 def _soft_step(offsets_m: Float64Array, softness_m: float) -> Float64Array:

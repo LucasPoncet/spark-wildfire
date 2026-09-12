@@ -1,0 +1,11 @@
+# Kept in step with [receivers] in geometry.toml, which is what this scene's
+# runner actually resolves; the two must not describe different arrays.
+[receiver]
+placement_strategy = "ring"
+receiver_count = 20
+ring_radius_m = 22.0
+ring_center_x_fraction = 0.5
+ring_center_y_fraction = 0.5
+grid_spacing_m = 10.0
+random_radius_m = 22.0
+random_seed = 0
